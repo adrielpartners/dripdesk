@@ -1,0 +1,546 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ TENANCY & AUTH ============
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  firstName    String?
+  lastName     String?
+  role         UserRole @default(MEMBER)
+  avatarUrl    String?
+
+  magicLinkToken   String?   @unique
+  magicLinkExpires DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  sessions       Session[]
+
+  @@index([email])
+  @@index([magicLinkToken])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+}
+
+model Organization {
+  id      String @id @default(cuid())
+  name    String
+  slug    String @unique
+  logoUrl String?
+
+  stripeCustomerId     String?       @unique
+  stripeSubscriptionId String?       @unique
+  billingPlanId        String?
+  billingPlan          BillingPlan?  @relation(fields: [billingPlanId], references: [id])
+  billingStatus        BillingStatus @default(TRIAL)
+  trialEndsAt          DateTime?
+
+  defaultTimezone    String  @default("UTC")
+  defaultSenderEmail String?
+  defaultSenderPhone String?
+
+  twilioAccountSid  String?
+  twilioAuthToken   String?
+  twilioPhoneNumber String?
+
+  telegramBotToken String?
+
+  whatsappBusinessId String?
+  whatsappPhoneId    String?
+  whatsappToken      String?
+
+  smtpHost      String?
+  smtpPort      Int?
+  smtpUser      String?
+  smtpPassword  String?
+  emailProvider EmailProvider?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users          User[]
+  campaigns      Campaign[]
+  persons        Person[]
+  tags           Tag[]
+  billingHistory BillingHistory[]
+
+  @@index([slug])
+}
+
+// ============ BILLING ============
+
+model BillingPlan {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  displayName  String
+  price        Decimal @db.Decimal(10, 2)
+  stripePriceId String? @unique
+  activeContactsLimit Int
+  campaignsLimit      Int?
+  isLifetime          Boolean @default(false)
+  features     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizations Organization[]
+}
+
+model BillingHistory {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  stripeInvoiceId String?  @unique
+  amount          Decimal  @db.Decimal(10, 2)
+  currency        String   @default("USD")
+  status          String
+  paidAt          DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+// ============ CAMPAIGNS ============
+
+model Campaign {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name            String
+  description     String?
+  status          CampaignStatus @default(DRAFT)
+
+  scheduleType   ScheduleType @default(DAILY)
+  customSchedule Json?
+  timezone       String       @default("UTC")
+  sendTime       String       @default("09:00")
+
+  completionMode CompletionMode @default(TIME_BASED)
+  completionDays Int            @default(1)
+
+  channelsEnabled String[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  publishedAt DateTime?
+  archivedAt  DateTime?
+  deletedAt   DateTime?
+
+  steps        Step[]
+  enrollments  Enrollment[]
+  trackedLinks TrackedLink[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model Step {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  order     Int
+  name      String
+  delayDays Int @default(1)
+
+  smsContent    String?
+  smsMediaUrl   String?
+
+  telegramContent   String?
+  telegramParseMode String? @default("HTML")
+  telegramMediaUrl  String?
+
+  whatsappContent   String?
+  whatsappMediaType String?
+  whatsappMediaUrl  String?
+
+  emailSubject      String?
+  emailHtmlContent  String?  @db.Text
+  emailTextContent  String?  @db.Text
+
+  externalLinkUrl  String?
+  sendTimeOverride String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  trackedLinks TrackedLink[]
+  stepStates   EnrollmentStepState[]
+
+  @@unique([campaignId, order])
+  @@index([campaignId])
+}
+
+// ============ PERSONS ============
+
+model Person {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  email       String?
+  phone       String?
+  telegramId  String?
+  whatsappId  String?
+
+  firstName String?
+  lastName  String?
+  timezone  String?
+
+  preferredChannels String[] @default(["EMAIL", "SMS"])
+
+  globallyUnsubscribed   Boolean   @default(false)
+  globallyUnsubscribedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  tags               PersonTag[]
+  channels           PersonChannel[]
+  enrollments        Enrollment[]
+  unsubscribeEvents  UnsubscribeEvent[]
+  deletionRequest    DeletionRequest?
+
+  @@unique([organizationId, email])
+  @@unique([organizationId, phone])
+  @@index([organizationId])
+  @@index([email])
+  @@index([phone])
+}
+
+model PersonChannel {
+  id       String @id @default(cuid())
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  channel    String
+  identifier String
+  isVerified Boolean   @default(false)
+  optedOut   Boolean   @default(false)
+  optedOutAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([personId, channel])
+  @@index([personId])
+}
+
+model Tag {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name  String
+  color String? @default("#10B981")
+
+  createdAt DateTime @default(now())
+
+  persons PersonTag[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model PersonTag {
+  personId String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  tagId    String
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([personId, tagId])
+}
+
+// ============ ENROLLMENTS ============
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  personId   String
+  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  status           EnrollmentStatus @default(ACTIVE)
+  enrolledAt       DateTime         @default(now())
+  currentStepOrder Int              @default(1)
+  nextStepAt       DateTime?
+
+  completedAt           DateTime?
+  completionPercentage  Float     @default(0)
+
+  totalOpens  Int @default(0)
+  totalClicks Int @default(0)
+
+  accessToken String @unique @default(cuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stepStates EnrollmentStepState[]
+  messages   MessageOutbox[]
+
+  @@unique([personId, campaignId])
+  @@index([personId])
+  @@index([campaignId])
+  @@index([status])
+  @@index([nextStepAt])
+  @@index([accessToken])
+}
+
+model EnrollmentStepState {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId       String
+  step         Step       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  status StepStatus @default(PENDING)
+
+  scheduledAt  DateTime?
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+
+  openedAt     DateTime?
+  openedCount  Int       @default(0)
+  firstClickedAt DateTime?
+  clickedCount   Int     @default(0)
+
+  completedAt       DateTime?
+  completionMethod  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([enrollmentId, stepId])
+  @@index([enrollmentId])
+  @@index([stepId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+// ============ MESSAGING ============
+
+model MessageOutbox {
+  id           String     @id @default(cuid())
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  stepId       String
+  step         Step       @relation(fields: [stepId], references: [id])
+
+  channel String
+
+  recipientId      String
+  recipientAddress String
+
+  subject        String?
+  contentPreview String?  @db.Text
+
+  status MessageStatus @default(QUEUED)
+
+  providerMessageId String?  @unique
+  providerResponse  Json?
+
+  errorMessage String?  @db.Text
+  retryCount   Int      @default(0)
+  maxRetries   Int      @default(3)
+  nextRetryAt  DateTime?
+
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
+  deliveredAt DateTime?
+
+  events MessageEvent[]
+
+  @@index([enrollmentId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MessageEvent {
+  id        String        @id @default(cuid())
+  messageId String
+  message   MessageOutbox @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  eventType String
+  eventData Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+// ============ TRACKING ============
+
+model TrackedLink {
+  id         String   @id @default(cuid())
+  campaignId String
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  stepId     String?
+  step       Step?    @relation(fields: [stepId], references: [id], onDelete: SetNull)
+
+  originalUrl String
+  linkToken   String @unique
+
+  totalClicks  Int @default(0)
+  uniqueClicks Int @default(0)
+
+  createdAt DateTime @default(now())
+
+  linkClicks TrackedLinkClick[]
+
+  @@index([campaignId])
+  @@index([linkToken])
+}
+
+model TrackedLinkClick {
+  id         String      @id @default(cuid())
+  linkId     String
+  link       TrackedLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  enrollmentId String?
+  ipAddress    String?
+  userAgent    String?
+  clickedAt    DateTime @default(now())
+
+  @@index([linkId])
+  @@index([enrollmentId])
+}
+
+// ============ UNSUBSCRIBE & DELETION ============
+
+model UnsubscribeEvent {
+  id         String  @id @default(cuid())
+  personId   String
+  person     Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  campaignId String?
+
+  channel String?
+  reason  String?
+
+  createdAt DateTime @default(now())
+
+  @@index([personId])
+  @@index([campaignId])
+}
+
+model DeletionRequest {
+  id       String @id @default(cuid())
+  personId String @unique
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  status       DeletionStatus @default(PENDING)
+  requestedAt  DateTime       @default(now())
+  scheduledFor DateTime?
+  completedAt  DateTime?
+
+  @@index([status])
+}
+
+// ============ ENUMS ============
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum BillingStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INACTIVE
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum ScheduleType {
+  DAILY
+  WEEKDAYS
+  WEEKLY
+  CUSTOM
+}
+
+enum CompletionMode {
+  TIME_BASED
+  LINK_CLICK
+  REPLY
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DROPPED
+}
+
+enum StepStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  COMPLETED
+  FAILED
+}
+
+enum MessageStatus {
+  QUEUED
+  SENDING
+  SENT
+  DELIVERED
+  FAILED
+  BOUNCED
+}
+
+enum EmailProvider {
+  SMTP
+  BREVO
+  SENDGRID
+  MAILGUN
+}
+
+enum DeletionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+}
