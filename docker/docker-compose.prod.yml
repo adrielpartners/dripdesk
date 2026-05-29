@@ -40,15 +40,21 @@ services:
     environment:
       DRIPDESK_ENV: production
       DRIPDESK_API_PORT: 3000
-      DRIPDESK_DATABASE_URL: postgresql://dripdesk:${DRIPDESK_POSTGRES_PASSWORD:?set DRIPDESK_POSTGRES_PASSWORD}@postgres:5432/dripdesk?schema=public
       DRIPDESK_REDIS_URL: redis://redis:6379
     networks:
+      - edge
       - internal
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dripdesk-api.rule=Host(`api.dripdesk.net`)"
+      - "traefik.http.routers.dripdesk-api.entrypoints=websecure"
+      - "traefik.http.routers.dripdesk-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dripdesk-api.loadbalancer.server.port=3000"
 
   worker:
     build:
@@ -81,6 +87,8 @@ services:
       NODE_ENV: production
       PORT: 3001
       HOST: 0.0.0.0
+      DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
+      DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
     networks:
       - edge
     depends_on:
@@ -93,7 +101,7 @@ services:
       retries: 5
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dripdesk-web.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.dripdesk-web.rule=Host(`app.dripdesk.net`)"
       - "traefik.http.routers.dripdesk-web.entrypoints=websecure"
       - "traefik.http.routers.dripdesk-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.dripdesk-web.loadbalancer.server.port=3001"
