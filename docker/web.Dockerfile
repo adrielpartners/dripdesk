@@ -8,7 +8,7 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN pnpm --filter @dripdesk/web build
+RUN pnpm turbo build --filter=@dripdesk/web
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
