@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsString, MinLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class AcceptInviteDto {
@@ -12,9 +12,10 @@ export class AcceptInviteDto {
   @IsNotEmpty()
   email!: string;
 
-  @ApiProperty({ example: 'SecurePass123!' })
+  @ApiProperty({ example: 'SecurePass123!', minLength: 8 })
   @IsString()
   @IsNotEmpty()
+  @MinLength(8)
   password!: string;
 
   @ApiProperty({ example: 'Jane' })

@@ -21,9 +21,14 @@ export class PortalService {
       };
     }
 
+    // All persons for a user share the same organization;
+    // use the first person's org for defense-in-depth filtering
+    const organizationId = persons[0].organizationId;
+
     const enrollments = await this.prisma.enrollment.findMany({
       where: {
         personId: { in: personIds },
+        organizationId,
         status: { not: 'removed' },
       },
       include: {

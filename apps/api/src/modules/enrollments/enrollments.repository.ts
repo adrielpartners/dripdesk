@@ -1,10 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { BILLING_PLAN_ACTIVE_CONTACT_LIMITS } from '@dripdesk/shared';
+import { BILLING_PLAN_ACTIVE_CONTACT_LIMITS, ACTIVE_CONTACT_WINDOW_DAYS } from '@dripdesk/shared';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
-
-const ACTIVE_CONTACT_WINDOW_DAYS = 30;
 
 @Injectable()
 export class EnrollmentsRepository {

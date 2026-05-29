@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { TrackingService } from './tracking.service';
 
 interface TrackingRequest {
@@ -17,6 +18,7 @@ export class TrackingController {
   constructor(private readonly trackingService: TrackingService) {}
 
   @Get(':token')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Handle tracked link redirect' })
   async redirect(@Param('token') token: string, @Req() req: TrackingRequest, @Res() res: RedirectResponse) {
     const originalUrl = await this.trackingService.handleLinkClick(token, {

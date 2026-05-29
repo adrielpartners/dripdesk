@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BILLING_PLAN_ACTIVE_CONTACT_LIMITS, BILLING_PLANS } from '@dripdesk/shared';
+import { BILLING_PLAN_ACTIVE_CONTACT_LIMITS, BILLING_PLANS, ACTIVE_CONTACT_WINDOW_DAYS } from '@dripdesk/shared';
 import { BillingStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -276,6 +276,6 @@ export class BillingService {
   }
 
   private activeContactWindowStart() {
-    return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    return new Date(Date.now() - ACTIVE_CONTACT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   }
 }

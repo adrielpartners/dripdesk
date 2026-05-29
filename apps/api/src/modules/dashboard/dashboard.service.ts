@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { MessageEventType } from '@prisma/client';
+import { ACTIVE_CONTACT_WINDOW_DAYS } from '@dripdesk/shared';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { PrismaService } from '../../prisma/prisma.service';
-
-const ACTIVE_CONTACT_WINDOW_DAYS = 30;
 const CAMPAIGN_PERFORMANCE_LIMIT = 20;
 
 type RateCounts = {

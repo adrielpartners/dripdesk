@@ -39,13 +39,14 @@ export class AuthService {
     if (existingUser) throw new ConflictException('Email already in use');
 
     const slug = slugify(dto.organizationName);
-    const existingOrg = await this.prisma.organization.findUnique({ where: { slug } });
-
-    if (existingOrg) throw new ConflictException('Organization name already taken');
 
     const passwordHash = await this.passwords.hashPassword(dto.password);
 
     const user = await this.prisma.$transaction(async (tx) => {
+      // Check slug uniqueness inside the transaction to avoid race conditions
+      const existingOrg = await tx.organization.findUnique({ where: { slug } });
+      if (existingOrg) throw new ConflictException('Organization name already taken');
+
       const organization = await tx.organization.create({
         data: {
           name: dto.organizationName,
