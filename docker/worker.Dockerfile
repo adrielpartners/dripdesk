@@ -28,5 +28,5 @@ COPY --from=build /app/packages/config/dist ./packages/config/dist
 COPY --from=build /app/packages/database/dist ./packages/database/dist
 COPY --from=build /app/packages/shared/dist ./packages/shared/dist
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=build /app/packages/database/node_modules/@prisma ./node_modules/@prisma
 CMD ["node", "apps/worker/dist/main.js"]
