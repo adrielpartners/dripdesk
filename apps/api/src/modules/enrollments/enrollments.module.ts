@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
-import { EnrollmentsService } from './enrollments.service';
+import { CurrentOrganizationGuard } from '../../common/guards/current-organization.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { EnrollmentsController } from './enrollments.controller';
-import { SchedulerModule } from '../scheduler/scheduler.module';
+import { EnrollmentsRepository } from './enrollments.repository';
+import { EnrollmentsService } from './enrollments.service';
 
 @Module({
-  imports: [SchedulerModule],
-  providers: [EnrollmentsService],
+  providers: [EnrollmentsService, EnrollmentsRepository, CurrentOrganizationGuard, RolesGuard],
   controllers: [EnrollmentsController],
   exports: [EnrollmentsService],
 })

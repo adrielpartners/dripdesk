@@ -20,18 +20,37 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: configService.get<string>('JWT_SECRET', 'default-secret'),
+      secretOrKey: configService.get<string>('dripdesk.sessionSecret', ''),
     });
   }
 
   async validate(payload: JwtPayload) {
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      include: { organization: true },
+      include: {
+        memberships: {
+          select: {
+            organizationId: true,
+            role: true,
+          },
+        },
+      },
     });
 
     if (!user) throw new UnauthorizedException();
 
-    return user;
+    const primaryMembership =
+      user.memberships.find((membership) => membership.organizationId === payload.orgId) ??
+      user.memberships[0];
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      organizationId: primaryMembership?.organizationId ?? null,
+      memberships: user.memberships,
+    };
   }
 }

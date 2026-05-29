@@ -1,0 +1,214 @@
+.shell {
+  min-height: 100vh;
+  background: var(--dd-color-bg);
+}
+
+.shell__header {
+  border-bottom: var(--dd-border-width) solid var(--dd-color-border);
+  background: var(--dd-color-surface);
+}
+
+.shell__header-inner {
+  display: grid;
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  gap: var(--dd-space-4);
+  padding: var(--dd-space-4);
+}
+
+.shell__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dd-space-4);
+}
+
+.shell__brand {
+  color: var(--dd-color-text);
+  font-size: var(--dd-font-size-lg);
+  font-weight: var(--dd-font-weight-bold);
+  line-height: var(--dd-line-height-tight);
+  text-decoration: none;
+}
+
+.shell__user {
+  color: var(--dd-color-text-muted);
+  font-size: var(--dd-font-size-sm);
+}
+
+.shell__nav {
+  display: flex;
+  gap: var(--dd-space-2);
+  overflow-x: auto;
+  padding-bottom: var(--dd-space-1);
+}
+
+.shell__nav-link {
+  display: inline-flex;
+  min-height: 2.25rem;
+  flex: 0 0 auto;
+  align-items: center;
+  border-radius: var(--dd-radius-md);
+  color: var(--dd-color-text-muted);
+  font-size: var(--dd-font-size-sm);
+  font-weight: var(--dd-font-weight-medium);
+  padding: 0 var(--dd-space-3);
+  text-decoration: none;
+}
+
+.shell__nav-link:hover,
+.shell__nav-link.router-link-active {
+  background: var(--dd-color-primary-soft);
+  color: var(--dd-color-green-700);
+}
+
+.shell__body {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  padding: var(--dd-space-5) var(--dd-space-4) var(--dd-space-8);
+}
+
+.shell__body--narrow {
+  width: min(100%, 28rem);
+  padding-top: var(--dd-space-8);
+}
+
+.page-stack {
+  display: grid;
+  gap: var(--dd-space-5);
+}
+
+.page-header {
+  display: grid;
+  gap: var(--dd-space-2);
+}
+
+.page-header__eyebrow,
+.page-header__description {
+  margin: 0;
+  color: var(--dd-color-text-muted);
+}
+
+.page-header__eyebrow {
+  font-size: var(--dd-font-size-sm);
+  font-weight: var(--dd-font-weight-semibold);
+}
+
+.page-header__title {
+  margin: 0;
+  font-size: var(--dd-font-size-2xl);
+  line-height: var(--dd-line-height-tight);
+}
+
+.shell-grid {
+  display: grid;
+  gap: var(--dd-space-4);
+}
+
+.auth-form {
+  display: grid;
+  gap: var(--dd-space-4);
+}
+
+.person-form,
+.person-search,
+.campaign-form,
+.step-form {
+  display: grid;
+  gap: var(--dd-space-4);
+}
+
+.step-form {
+  align-items: start;
+}
+
+.channel-fieldset {
+  display: grid;
+  gap: var(--dd-space-3);
+  min-width: 0;
+  border: var(--dd-border-width) solid var(--dd-color-border);
+  border-radius: var(--dd-radius-md);
+  margin: 0;
+  padding: var(--dd-space-4);
+}
+
+.channel-fieldset legend {
+  color: var(--dd-color-text);
+  font-size: var(--dd-font-size-sm);
+  font-weight: var(--dd-font-weight-semibold);
+  padding: 0 var(--dd-space-1);
+}
+
+.person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dd-space-3);
+}
+
+.person-checkbox,
+.campaign-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dd-space-2);
+  color: var(--dd-color-text);
+  font-size: var(--dd-font-size-sm);
+  font-weight: var(--dd-font-weight-medium);
+}
+
+.step-list {
+  display: grid;
+  gap: var(--dd-space-3);
+}
+
+.usage-meter {
+  display: grid;
+  gap: var(--dd-space-1);
+  border-bottom: var(--dd-border-width) solid var(--dd-color-border);
+  margin-bottom: var(--dd-space-4);
+  padding-bottom: var(--dd-space-4);
+}
+
+.step-item {
+  display: grid;
+  gap: var(--dd-space-3);
+  border: var(--dd-border-width) solid var(--dd-color-border);
+  border-radius: var(--dd-radius-md);
+  padding: var(--dd-space-4);
+}
+
+.step-item__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dd-space-2);
+}
+
+@media (min-width: 48rem) {
+  .shell__header-inner {
+    padding: var(--dd-space-4) var(--dd-space-8);
+  }
+
+  .shell__body {
+    padding: var(--dd-space-8);
+  }
+
+  .shell-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .person-form,
+  .person-search,
+  .campaign-form,
+  .step-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end;
+  }
+
+  .person-actions,
+  .campaign-actions,
+  .step-actions,
+  .channel-fieldset {
+    grid-column: 1 / -1;
+  }
+}

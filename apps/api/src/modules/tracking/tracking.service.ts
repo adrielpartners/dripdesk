@@ -1,73 +1,89 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, GoneException, Injectable, NotFoundException } from '@nestjs/common';
+import { ProgressService } from '@dripdesk/database';
 import { PrismaService } from '../../prisma/prisma.service';
-import { nanoid } from 'nanoid';
+
+interface ClickMetadata {
+  ipAddress?: string;
+  userAgent?: string;
+}
 
 @Injectable()
 export class TrackingService {
-  constructor(private prisma: PrismaService) {}
+  private readonly progress: ProgressService;
 
-  async createTrackedLink(campaignId: string, stepId: string | null, originalUrl: string) {
-    const linkToken = nanoid(8);
-    return this.prisma.trackedLink.create({
-      data: { campaignId, stepId, originalUrl, linkToken },
-    });
+  constructor(private readonly prisma: PrismaService) {
+    this.progress = new ProgressService(prisma);
   }
 
-  async handleLinkClick(
-    linkToken: string,
-    enrollmentId?: string,
-    metadata?: { ipAddress?: string; userAgent?: string },
-  ) {
-    const link = await this.prisma.trackedLink.findUnique({ where: { linkToken } });
-    if (!link) throw new NotFoundException('Link not found');
-
-    await this.prisma.trackedLinkClick.create({
-      data: {
-        linkId: link.id,
-        enrollmentId,
-        ipAddress: metadata?.ipAddress,
-        userAgent: metadata?.userAgent,
-      },
+  async handleLinkClick(token: string, metadata?: ClickMetadata) {
+    const link = await this.prisma.trackedLink.findUnique({
+      where: { token },
     });
 
-    await this.prisma.trackedLink.update({
-      where: { id: link.id },
-      data: {
-        totalClicks: { increment: 1 },
-        uniqueClicks: enrollmentId ? { increment: 1 } : undefined,
-      },
-    });
-
-    if (enrollmentId && link.stepId) {
-      const enrollment = await this.prisma.enrollment.findUnique({
-        where: { id: enrollmentId },
-        include: { campaign: true },
-      });
-
-      if (enrollment?.campaign.completionMode === 'LINK_CLICK') {
-        await this.prisma.enrollmentStepState.updateMany({
-          where: { enrollmentId, stepId: link.stepId },
-          data: {
-            status: 'COMPLETED',
-            completedAt: new Date(),
-            completionMethod: 'LINK_CLICK',
-            firstClickedAt: new Date(),
-            clickedCount: { increment: 1 },
-          },
-        });
-      }
-
-      await this.prisma.enrollmentStepState.updateMany({
-        where: { enrollmentId, stepId: link.stepId },
-        data: { firstClickedAt: new Date(), clickedCount: { increment: 1 } },
-      });
-
-      await this.prisma.enrollment.update({
-        where: { id: enrollmentId },
-        data: { totalClicks: { increment: 1 } },
-      });
+    if (!link) {
+      throw new NotFoundException('Tracked link not found');
     }
 
+    if (link.expiresAt && link.expiresAt <= new Date()) {
+      throw new GoneException('Tracked link expired');
+    }
+
+    assertSafeRedirectUrl(link.originalUrl);
+    const clickedAt = new Date();
+
+    await this.prisma.$transaction([
+      this.prisma.trackedLink.update({
+        where: { id: link.id },
+        data: {
+          clickCount: { increment: 1 },
+          clickedAt,
+        },
+      }),
+      this.prisma.messageEvent.create({
+        data: {
+          organizationId: link.organizationId,
+          enrollmentId: link.enrollmentId,
+          messageOutboxId: link.messageOutboxId,
+          trackedLinkId: link.id,
+          eventType: 'clicked',
+          occurredAt: clickedAt,
+          metadata: clickMetadata(metadata),
+        },
+      }),
+      this.prisma.enrollmentStepState.updateMany({
+        where: {
+          enrollmentId: link.enrollmentId,
+          campaignStepId: link.campaignStepId,
+        },
+        data: {
+          clickedAt,
+        },
+      }),
+    ]);
+
+    await this.progress.evaluateEnrollment(link.enrollmentId);
+
     return link.originalUrl;
+  }
+}
+
+function clickMetadata(metadata?: ClickMetadata) {
+  return {
+    ...(metadata?.ipAddress ? { ipAddress: metadata.ipAddress } : {}),
+    ...(metadata?.userAgent ? { userAgent: metadata.userAgent } : {}),
+  };
+}
+
+function assertSafeRedirectUrl(url: string) {
+  let parsed: URL;
+
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new BadRequestException('Tracked link target is not allowed');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new BadRequestException('Tracked link target is not allowed');
   }
 }

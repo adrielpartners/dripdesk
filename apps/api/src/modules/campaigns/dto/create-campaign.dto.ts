@@ -1,59 +1,56 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsEnum,
-  IsArray,
-  IsInt,
-  Min,
-  IsIn,
-} from 'class-validator';
+import { IsArray, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CampaignStatus, ScheduleType, CompletionMode } from '@prisma/client';
+
+export type CampaignScheduleType =
+  | 'daily'
+  | 'weekdays'
+  | 'monday_wednesday_friday'
+  | 'custom_interval'
+  | 'custom_days_of_week';
+export type CampaignProgressRule = 'time_based' | 'link_click_required' | 'reply_required';
+export type CampaignMode = 'standard' | 'advanced';
+export type CampaignChannel = 'sms' | 'telegram' | 'email';
+export interface CampaignScheduleConfig {
+  sendTime?: string;
+  intervalDays?: number;
+  daysOfWeek?: number[];
+}
 
 export class CreateCampaignDto {
-  @ApiProperty()
+  @ApiProperty({ example: '7-day onboarding drip' })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  @MaxLength(180)
+  name!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: 'Short lessons for the first week.' })
   @IsOptional()
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: ScheduleType, default: 'DAILY' })
+  @ApiPropertyOptional({ enum: ['daily', 'weekdays', 'monday_wednesday_friday', 'custom_interval', 'custom_days_of_week'] })
   @IsOptional()
-  @IsEnum(ScheduleType)
-  scheduleType?: ScheduleType;
+  @IsIn(['daily', 'weekdays', 'monday_wednesday_friday', 'custom_interval', 'custom_days_of_week'])
+  scheduleType?: CampaignScheduleType;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: { sendTime: '09:00', intervalDays: 2, daysOfWeek: [1, 3, 5] } })
   @IsOptional()
-  customSchedule?: Record<string, any>;
+  @IsObject()
+  scheduleConfig?: CampaignScheduleConfig;
 
-  @ApiPropertyOptional({ default: 'UTC' })
+  @ApiPropertyOptional({ enum: ['time_based', 'link_click_required', 'reply_required'] })
   @IsOptional()
-  @IsString()
-  timezone?: string;
+  @IsIn(['time_based', 'link_click_required', 'reply_required'])
+  progressRule?: CampaignProgressRule;
 
-  @ApiPropertyOptional({ default: '09:00' })
+  @ApiPropertyOptional({ enum: ['standard', 'advanced'] })
   @IsOptional()
-  @IsString()
-  sendTime?: string;
+  @IsIn(['standard', 'advanced'])
+  mode?: CampaignMode;
 
-  @ApiPropertyOptional({ enum: CompletionMode, default: 'TIME_BASED' })
+  @ApiPropertyOptional({ enum: ['sms', 'telegram', 'email'], isArray: true })
   @IsOptional()
-  @IsEnum(CompletionMode)
-  completionMode?: CompletionMode;
-
-  @ApiPropertyOptional({ default: 1 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  completionDays?: number;
-
-  @ApiProperty({ example: ['EMAIL', 'SMS'] })
   @IsArray()
-  @IsIn(['SMS', 'EMAIL', 'TELEGRAM', 'WHATSAPP'], { each: true })
-  channelsEnabled: string[];
+  @IsIn(['sms', 'telegram', 'email'], { each: true })
+  defaultChannels?: CampaignChannel[];
 }

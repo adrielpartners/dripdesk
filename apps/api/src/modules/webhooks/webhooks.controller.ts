@@ -1,22 +1,42 @@
-import { Controller, Post, Body, Headers, Param, Logger } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Body, Controller, Headers, Param, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ok } from '../../common/api-response';
+import { WebhooksService } from './webhooks.service';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
 export class WebhooksController {
-  private readonly logger = new Logger(WebhooksController.name);
+  constructor(private readonly webhooks: WebhooksService) {}
 
-  @Post('twilio')
-  @ApiOperation({ summary: 'Handle Twilio status callbacks' })
-  handleTwilio(@Body() body: any) {
-    this.logger.log(`Twilio webhook: ${body.MessageStatus} for ${body.MessageSid}`);
-    return { received: true };
+  @Post('twilio/status')
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
+  @ApiOperation({ summary: 'Handle Twilio delivery status callbacks' })
+  async handleTwilioStatus(
+    @Body() body: Record<string, string | undefined>,
+    @Headers('x-twilio-signature') signature: string | undefined,
+  ) {
+    return ok(await this.webhooks.handleTwilioStatus(body, signature));
+  }
+
+  @Post('twilio/reply')
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
+  @ApiOperation({ summary: 'Handle Twilio inbound replies' })
+  async handleTwilioReply(
+    @Body() body: Record<string, string | undefined>,
+    @Headers('x-twilio-signature') signature: string | undefined,
+  ) {
+    return ok(await this.webhooks.handleTwilioReply(body, signature));
   }
 
   @Post('telegram/:orgId')
+  @Throttle({ default: { limit: 300, ttl: 60000 } })
   @ApiOperation({ summary: 'Handle Telegram bot webhook updates' })
-  handleTelegram(@Param('orgId') orgId: string, @Body() body: any) {
-    this.logger.log(`Telegram webhook for org ${orgId}`);
-    return { received: true };
+  async handleTelegram(
+    @Param('orgId') orgId: string,
+    @Headers('x-telegram-bot-api-secret-token') secret: string | undefined,
+    @Body() body: unknown,
+  ) {
+    return ok(await this.webhooks.handleTelegram(orgId, secret, body as never));
   }
 }

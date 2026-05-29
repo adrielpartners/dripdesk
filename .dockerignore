@@ -1,0 +1,12 @@
+node_modules
+**/node_modules
+.git
+.nuxt
+.output
+dist
+**/dist
+.turbo
+coverage
+.env
+.env.*
+!.env.example

@@ -1,58 +1,39 @@
+import { Type } from 'class-transformer';
 import {
-  IsEmail,
+  IsArray,
+  IsNotEmpty,
   IsOptional,
   IsString,
-  IsArray,
-  IsIn,
-  IsPhoneNumber,
+  MaxLength,
+  ValidateNested,
 } from 'class-validator';
-import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PersonChannelDto } from './person-channel.dto';
 
 export class CreatePersonDto {
-  @ApiPropertyOptional({ example: 'john@example.com' })
-  @IsOptional()
-  @IsEmail()
-  email?: string;
-
-  @ApiPropertyOptional({ example: '+15551234567' })
-  @IsOptional()
+  @ApiProperty({ example: 'Jordan Lee' })
   @IsString()
-  phone?: string;
-
-  @ApiPropertyOptional({ example: '123456789' })
-  @IsOptional()
-  @IsString()
-  telegramId?: string;
-
-  @ApiPropertyOptional({ example: '+15551234567' })
-  @IsOptional()
-  @IsString()
-  whatsappId?: string;
-
-  @ApiPropertyOptional({ example: 'John' })
-  @IsOptional()
-  @IsString()
-  firstName?: string;
-
-  @ApiPropertyOptional({ example: 'Doe' })
-  @IsOptional()
-  @IsString()
-  lastName?: string;
+  @IsNotEmpty()
+  @MaxLength(160)
+  displayName!: string;
 
   @ApiPropertyOptional({ example: 'America/New_York' })
   @IsOptional()
   @IsString()
+  @MaxLength(80)
   timezone?: string;
 
-  @ApiPropertyOptional({ example: ['EMAIL', 'SMS'] })
-  @IsOptional()
-  @IsArray()
-  @IsIn(['SMS', 'EMAIL', 'TELEGRAM', 'WHATSAPP'], { each: true })
-  preferredChannels?: string[];
-
-  @ApiPropertyOptional({ type: [String], description: 'Tag IDs to assign' })
+  @ApiPropertyOptional({ example: ['vip', 'spring-cohort'] })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
-  tagIds?: string[];
+  tags?: string[];
+
+  @ApiPropertyOptional({ type: [PersonChannelDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PersonChannelDto)
+  channels?: PersonChannelDto[];
 }
+

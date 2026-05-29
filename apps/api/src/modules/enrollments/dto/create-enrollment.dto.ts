@@ -1,14 +1,16 @@
-import { IsString, IsArray, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString } from 'class-validator';
 
-export class CreateEnrollmentDto {
+export class EnrollPersonDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  campaignId: string;
+  personId!: string;
+}
 
-  @ApiProperty({ type: [String] })
-  @IsArray()
-  @IsString({ each: true })
-  personIds: string[];
+export class EnrollCampaignDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  campaignId!: string;
 }

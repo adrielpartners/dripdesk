@@ -5,7 +5,7 @@ import Redis from 'ioredis';
 @Injectable()
 export class RedisService extends Redis implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {
-    super(configService.get<string>('REDIS_URL', 'redis://localhost:6379'), {
+    super(configService.get<string>('dripdesk.redisUrl', 'redis://localhost:6379'), {
       lazyConnect: true,
     });
   }

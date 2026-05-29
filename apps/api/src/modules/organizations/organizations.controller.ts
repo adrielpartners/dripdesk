@@ -1,9 +1,15 @@
-import { Controller, Get, Patch, Body, Param, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrganizationsService } from './organizations.service';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentOrganizationGuard } from '../../common/guards/current-organization.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { AuthenticatedUser, TenantContext } from '../../common/tenant/tenant-context';
+import { ok } from '../../common/api-response';
 
 @ApiTags('organizations')
 @Controller('organizations')
@@ -12,27 +18,31 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
 
+  @Get()
+  @ApiOperation({ summary: 'List organizations available to the current user' })
+  async list(@CurrentUser() user: AuthenticatedUser) {
+    return ok(await this.organizationsService.listForUser(user.id));
+  }
+
   @Get('current')
+  @UseGuards(CurrentOrganizationGuard)
   @ApiOperation({ summary: 'Get current user organization' })
-  getCurrent(@CurrentUser() user: any) {
-    return this.organizationsService.findById(user.organizationId);
+  async getCurrent(@CurrentTenant() tenant: TenantContext) {
+    return ok(await this.organizationsService.findCurrent(tenant));
   }
 
-  @Get(':id')
+  @Get(':organizationId')
+  @UseGuards(CurrentOrganizationGuard)
   @ApiOperation({ summary: 'Get organization by ID' })
-  findOne(@Param('id') id: string) {
-    return this.organizationsService.findById(id);
+  async findOne(@CurrentTenant() tenant: TenantContext) {
+    return ok(await this.organizationsService.findCurrent(tenant));
   }
 
-  @Patch(':id')
+  @Patch(':organizationId')
+  @UseGuards(CurrentOrganizationGuard, RolesGuard)
+  @Roles('owner', 'admin')
   @ApiOperation({ summary: 'Update organization' })
-  update(@Param('id') id: string, @Body() dto: UpdateOrganizationDto) {
-    return this.organizationsService.update(id, dto);
-  }
-
-  @Get(':id/usage')
-  @ApiOperation({ summary: 'Get organization usage stats' })
-  getUsage(@Param('id') id: string) {
-    return this.organizationsService.getUsage(id);
+  async update(@CurrentTenant() tenant: TenantContext, @Body() dto: UpdateOrganizationDto) {
+    return ok(await this.organizationsService.updateCurrent(tenant, dto));
   }
 }

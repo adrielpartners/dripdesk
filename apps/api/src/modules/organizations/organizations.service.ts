@@ -1,79 +1,21 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
-import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { Injectable } from '@nestjs/common';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
-import { slugify } from '@dripdesk/shared';
+import { OrganizationsRepository } from './organizations.repository';
 
 @Injectable()
 export class OrganizationsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly organizations: OrganizationsRepository) {}
 
-  async findById(id: string) {
-    const org = await this.prisma.organization.findUnique({
-      where: { id },
-      include: { billingPlan: true },
-    });
-
-    if (!org) throw new NotFoundException('Organization not found');
-    return this.sanitize(org);
+  async listForUser(userId: string) {
+    return this.organizations.findManyForUser(userId);
   }
 
-  async findBySlug(slug: string) {
-    const org = await this.prisma.organization.findUnique({
-      where: { slug },
-      include: { billingPlan: true },
-    });
-
-    if (!org) throw new NotFoundException('Organization not found');
-    return this.sanitize(org);
+  async findCurrent(tenant: TenantContext) {
+    return this.organizations.findForTenant(tenant);
   }
 
-  async update(id: string, dto: UpdateOrganizationDto) {
-    const org = await this.prisma.organization.findUnique({ where: { id } });
-    if (!org) throw new NotFoundException('Organization not found');
-
-    const updated = await this.prisma.organization.update({
-      where: { id },
-      data: dto,
-      include: { billingPlan: true },
-    });
-
-    return this.sanitize(updated);
-  }
-
-  async getUsage(id: string) {
-    const [activeContacts, campaigns] = await Promise.all([
-      this.prisma.person.count({
-        where: { organizationId: id, deletedAt: null, globallyUnsubscribed: false },
-      }),
-      this.prisma.campaign.count({
-        where: { organizationId: id, deletedAt: null },
-      }),
-    ]);
-
-    const org = await this.prisma.organization.findUnique({
-      where: { id },
-      include: { billingPlan: true },
-    });
-
-    return {
-      activeContacts,
-      campaigns,
-      limits: {
-        activeContacts: org?.billingPlan?.activeContactsLimit ?? 10,
-        campaigns: org?.billingPlan?.campaignsLimit ?? 1,
-      },
-    };
-  }
-
-  private sanitize(org: any) {
-    const { twilioAuthToken, telegramBotToken, whatsappToken, smtpPassword, ...safe } = org;
-    return {
-      ...safe,
-      hasTwilio: !!twilioAuthToken,
-      hasTelegram: !!telegramBotToken,
-      hasWhatsApp: !!whatsappToken,
-      hasSmtp: !!smtpPassword,
-    };
+  async updateCurrent(tenant: TenantContext, dto: UpdateOrganizationDto) {
+    return this.organizations.updateForTenant(tenant, dto);
   }
 }

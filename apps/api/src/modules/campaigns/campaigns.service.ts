@@ -1,120 +1,88 @@
-import {
-  Injectable,
-  NotFoundException,
-  BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
-import { CampaignStatus } from '@prisma/client';
+import { CampaignsRepository } from './campaigns.repository';
 
 @Injectable()
 export class CampaignsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly campaigns: CampaignsRepository) {}
 
-  async findAll(orgId: string, page = 1, limit = 20) {
-    const skip = (page - 1) * limit;
-    const [data, total] = await Promise.all([
-      this.prisma.campaign.findMany({
-        where: { organizationId: orgId, deletedAt: null },
-        include: {
-          _count: { select: { steps: true, enrollments: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.campaign.count({ where: { organizationId: orgId, deletedAt: null } }),
-    ]);
-
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  findAll(tenant: TenantContext, page = 1, limit = 20) {
+    return this.campaigns.findManyForTenant(tenant, Math.max(1, page), Math.min(Math.max(1, limit), 100));
   }
 
-  async findOne(id: string, orgId: string) {
-    const campaign = await this.prisma.campaign.findFirst({
-      where: { id, organizationId: orgId, deletedAt: null },
-      include: {
-        steps: { where: { deletedAt: null }, orderBy: { order: 'asc' } },
-        _count: { select: { enrollments: true } },
-      },
+  findOne(tenant: TenantContext, id: string) {
+    return this.campaigns.findByIdForTenant(tenant, id);
+  }
+
+  create(tenant: TenantContext, dto: CreateCampaignDto) {
+    this.validateChannels(dto.defaultChannels);
+    return this.campaigns.createForTenant(tenant, this.normalizeCampaign(dto));
+  }
+
+  update(tenant: TenantContext, id: string, dto: UpdateCampaignDto) {
+    this.validateChannels(dto.defaultChannels);
+    return this.campaigns.updateForTenant(tenant, id, this.normalizeCampaign(dto));
+  }
+
+  async activate(tenant: TenantContext, id: string) {
+    const campaign = await this.campaigns.findByIdForTenant(tenant, id);
+    const hasUsableStep = campaign.steps.some((step) => {
+      return (
+        step.status !== 'archived' &&
+        Boolean(
+          step.defaultContent ||
+            step.smsContent ||
+            step.telegramContent ||
+            step.emailSubject ||
+            step.emailBody,
+        )
+      );
     });
 
-    if (!campaign) throw new NotFoundException('Campaign not found');
-    return campaign;
-  }
-
-  async create(orgId: string, dto: CreateCampaignDto) {
-    return this.prisma.campaign.create({
-      data: {
-        organizationId: orgId,
-        name: dto.name,
-        description: dto.description,
-        scheduleType: dto.scheduleType ?? 'DAILY',
-        customSchedule: dto.customSchedule,
-        timezone: dto.timezone ?? 'UTC',
-        sendTime: dto.sendTime ?? '09:00',
-        completionMode: dto.completionMode ?? 'TIME_BASED',
-        completionDays: dto.completionDays ?? 1,
-        channelsEnabled: dto.channelsEnabled,
-      },
-    });
-  }
-
-  async update(id: string, orgId: string, dto: UpdateCampaignDto) {
-    const campaign = await this.findOne(id, orgId);
-
-    if (campaign.status === CampaignStatus.ARCHIVED) {
-      throw new BadRequestException('Cannot update an archived campaign');
+    if (!campaign.name.trim()) {
+      throw new BadRequestException('Campaign name is required');
     }
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: dto,
-    });
-  }
-
-  async publish(id: string, orgId: string) {
-    const campaign = await this.findOne(id, orgId);
-
-    const stepCount = await this.prisma.step.count({
-      where: { campaignId: id, deletedAt: null },
-    });
-
-    if (stepCount === 0) {
-      throw new BadRequestException('Campaign must have at least one step before publishing');
+    if (campaign.defaultChannels.length === 0) {
+      throw new BadRequestException('Campaign must have at least one default channel');
     }
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: { status: CampaignStatus.ACTIVE, publishedAt: new Date() },
-    });
+    if (!hasUsableStep) {
+      throw new BadRequestException('Campaign must have at least one step with content before activation');
+    }
+
+    return this.campaigns.activateForTenant(tenant, id);
   }
 
-  async pause(id: string, orgId: string) {
-    await this.findOne(id, orgId);
-
-    return this.prisma.campaign.update({
-      where: { id },
-      data: { status: CampaignStatus.PAUSED },
-    });
+  archive(tenant: TenantContext, id: string) {
+    return this.campaigns.archiveForTenant(tenant, id);
   }
 
-  async archive(id: string, orgId: string) {
-    await this.findOne(id, orgId);
-
-    return this.prisma.campaign.update({
-      where: { id },
-      data: { status: CampaignStatus.ARCHIVED, archivedAt: new Date() },
-    });
+  private normalizeCampaign<T extends CreateCampaignDto | UpdateCampaignDto>(dto: T): T {
+    return {
+      ...dto,
+      name: dto.name?.trim(),
+      description: dto.description?.trim(),
+      scheduleConfig: this.normalizeScheduleConfig(dto.scheduleConfig),
+    };
   }
 
-  async remove(id: string, orgId: string) {
-    await this.findOne(id, orgId);
+  private normalizeScheduleConfig(config: CreateCampaignDto['scheduleConfig']) {
+    if (!config) return undefined;
 
-    return this.prisma.campaign.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    return {
+      sendTime: typeof config.sendTime === 'string' ? config.sendTime.trim() : undefined,
+      intervalDays: typeof config.intervalDays === 'number' ? config.intervalDays : undefined,
+      daysOfWeek: Array.isArray(config.daysOfWeek)
+        ? config.daysOfWeek.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6)
+        : undefined,
+    };
+  }
+
+  private validateChannels(channels?: string[]) {
+    if (!channels) return;
+    if (channels.length === 0) throw new BadRequestException('At least one default channel is required');
   }
 }

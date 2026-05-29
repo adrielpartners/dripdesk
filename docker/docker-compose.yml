@@ -32,6 +32,68 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    container_name: dripdesk-api
+    restart: unless-stopped
+    environment:
+      DRIPDESK_API_PORT: 3000
+      DRIPDESK_DATABASE_URL: postgresql://dripdesk:dripdesk@postgres:5432/dripdesk?schema=public
+      DRIPDESK_REDIS_URL: redis://redis:6379
+      DRIPDESK_PUBLIC_API_URL: http://localhost:3000
+      DRIPDESK_PUBLIC_WEB_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/worker.Dockerfile
+    container_name: dripdesk-worker
+    restart: unless-stopped
+    environment:
+      DRIPDESK_DATABASE_URL: postgresql://dripdesk:dripdesk@postgres:5432/dripdesk?schema=public
+      DRIPDESK_REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    container_name: dripdesk-web
+    restart: unless-stopped
+    environment:
+      DRIPDESK_PUBLIC_API_URL: http://localhost:3000/api
+      DRIPDESK_PUBLIC_WEB_URL: http://localhost:3001
+      PORT: 3001
+      HOST: 0.0.0.0
+    ports:
+      - "3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   postgres_data:
   redis_data:

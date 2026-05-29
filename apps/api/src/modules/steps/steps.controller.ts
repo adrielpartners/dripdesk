@@ -1,53 +1,61 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentOrganizationGuard } from '../../common/guards/current-organization.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { ok } from '../../common/api-response';
 import { StepsService } from './steps.service';
 import { CreateStepDto } from './dto/create-step.dto';
+import { UpdateStepDto } from './dto/update-step.dto';
 import { ReorderStepsDto } from './dto/reorder-steps.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('steps')
 @Controller()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, CurrentOrganizationGuard, RolesGuard)
+@Roles('owner', 'admin')
 @ApiBearerAuth()
 export class StepsController {
   constructor(private readonly stepsService: StepsService) {}
 
   @Get('campaigns/:campaignId/steps')
-  @ApiOperation({ summary: 'List steps for a campaign' })
-  findByCampaign(@Param('campaignId') campaignId: string, @CurrentUser() user: any) {
-    return this.stepsService.findByCampaign(campaignId, user.organizationId);
+  @ApiOperation({ summary: 'List campaign steps' })
+  async findByCampaign(@CurrentTenant() tenant: TenantContext, @Param('campaignId') campaignId: string) {
+    return ok(await this.stepsService.findByCampaign(tenant, campaignId));
   }
 
   @Post('campaigns/:campaignId/steps')
-  @ApiOperation({ summary: 'Create a step in a campaign' })
-  create(
+  @ApiOperation({ summary: 'Create a campaign step' })
+  async create(
+    @CurrentTenant() tenant: TenantContext,
     @Param('campaignId') campaignId: string,
     @Body() dto: CreateStepDto,
-    @CurrentUser() user: any,
   ) {
-    return this.stepsService.create(campaignId, user.organizationId, dto);
+    return ok(await this.stepsService.create(tenant, campaignId, dto));
   }
 
   @Post('campaigns/:campaignId/steps/reorder')
-  @ApiOperation({ summary: 'Reorder steps in a campaign' })
-  reorder(
+  @ApiOperation({ summary: 'Reorder campaign steps' })
+  async reorder(
+    @CurrentTenant() tenant: TenantContext,
     @Param('campaignId') campaignId: string,
     @Body() dto: ReorderStepsDto,
-    @CurrentUser() user: any,
   ) {
-    return this.stepsService.reorder(campaignId, user.organizationId, dto.stepIds);
+    return ok(await this.stepsService.reorder(tenant, campaignId, dto.stepIds));
   }
 
   @Patch('steps/:id')
-  @ApiOperation({ summary: 'Update a step' })
-  update(@Param('id') id: string, @Body() dto: Partial<CreateStepDto>, @CurrentUser() user: any) {
-    return this.stepsService.update(id, user.organizationId, dto);
+  @ApiOperation({ summary: 'Update a campaign step' })
+  async update(@CurrentTenant() tenant: TenantContext, @Param('id') id: string, @Body() dto: UpdateStepDto) {
+    return ok(await this.stepsService.update(tenant, id, dto));
   }
 
   @Delete('steps/:id')
-  @ApiOperation({ summary: 'Soft delete a step' })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.stepsService.remove(id, user.organizationId);
+  @ApiOperation({ summary: 'Archive a campaign step' })
+  async archive(@CurrentTenant() tenant: TenantContext, @Param('id') id: string) {
+    return ok(await this.stepsService.archive(tenant, id));
   }
 }
+

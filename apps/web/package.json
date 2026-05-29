@@ -1,0 +1,23 @@
+{
+  "name": "@dripdesk/web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 0.0.0.0 --port 3001",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck",
+    "lint": "echo \"No web lint configured yet\"",
+    "test": "echo \"No web tests configured yet\""
+  },
+  "dependencies": {
+    "@dripdesk/shared": "workspace:*",
+    "nuxt": "^3.17.5",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2",
+    "vue-tsc": "^2.2.10"
+  }
+}

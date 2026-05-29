@@ -1,75 +1,68 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { CurrentOrganizationGuard } from '../../common/guards/current-organization.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { ok } from '../../common/api-response';
 import { CampaignsService } from './campaigns.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('campaigns')
 @Controller('campaigns')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, CurrentOrganizationGuard, RolesGuard)
+@Roles('owner', 'admin')
 @ApiBearerAuth()
 export class CampaignsController {
   constructor(private readonly campaignsService: CampaignsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List all campaigns' })
+  @ApiOperation({ summary: 'List organization campaigns' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  findAll(@CurrentUser() user: any, @Query('page') page = 1, @Query('limit') limit = 20) {
-    return this.campaignsService.findAll(user.organizationId, +page, +limit);
-  }
-
-  @Get(':id')
-  @ApiOperation({ summary: 'Get campaign by ID' })
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.campaignsService.findOne(id, user.organizationId);
+  async findAll(
+    @CurrentTenant() tenant: TenantContext,
+    @Query('page') page = '1',
+    @Query('limit') limit = '20',
+  ) {
+    return ok(await this.campaignsService.findAll(tenant, Number(page), Number(limit)));
   }
 
   @Post()
-  @ApiOperation({ summary: 'Create a new campaign' })
-  create(@Body() dto: CreateCampaignDto, @CurrentUser() user: any) {
-    return this.campaignsService.create(user.organizationId, dto);
+  @ApiOperation({ summary: 'Create a campaign' })
+  async create(@CurrentTenant() tenant: TenantContext, @Body() dto: CreateCampaignDto) {
+    return ok(await this.campaignsService.create(tenant, dto));
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a campaign' })
+  async findOne(@CurrentTenant() tenant: TenantContext, @Param('id') id: string) {
+    return ok(await this.campaignsService.findOne(tenant, id));
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a campaign' })
-  update(@Param('id') id: string, @Body() dto: UpdateCampaignDto, @CurrentUser() user: any) {
-    return this.campaignsService.update(id, user.organizationId, dto);
+  async update(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('id') id: string,
+    @Body() dto: UpdateCampaignDto,
+  ) {
+    return ok(await this.campaignsService.update(tenant, id, dto));
   }
 
-  @Post(':id/publish')
-  @ApiOperation({ summary: 'Publish a campaign' })
-  publish(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.campaignsService.publish(id, user.organizationId);
-  }
-
-  @Post(':id/pause')
-  @ApiOperation({ summary: 'Pause a campaign' })
-  pause(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.campaignsService.pause(id, user.organizationId);
-  }
-
-  @Post(':id/archive')
-  @ApiOperation({ summary: 'Archive a campaign' })
-  archive(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.campaignsService.archive(id, user.organizationId);
+  @Post(':id/activate')
+  @ApiOperation({ summary: 'Activate a campaign when valid' })
+  async activate(@CurrentTenant() tenant: TenantContext, @Param('id') id: string) {
+    return ok(await this.campaignsService.activate(tenant, id));
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Soft delete a campaign' })
-  remove(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.campaignsService.remove(id, user.organizationId);
+  @ApiOperation({ summary: 'Archive a campaign' })
+  async archive(@CurrentTenant() tenant: TenantContext, @Param('id') id: string) {
+    return ok(await this.campaignsService.archive(tenant, id));
   }
 }
+

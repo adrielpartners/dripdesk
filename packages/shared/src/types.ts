@@ -1,32 +1,32 @@
-export type Channel = 'SMS' | 'EMAIL' | 'TELEGRAM' | 'WHATSAPP';
+export type Channel = 'sms' | 'telegram' | 'email';
 
-export type UserRole = 'OWNER' | 'ADMIN' | 'MEMBER';
+export type UserRole = 'owner' | 'admin' | 'recipient';
 
-export type BillingStatus = 'TRIAL' | 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'INACTIVE';
+export type BillingStatus = 'trial' | 'active' | 'past_due' | 'canceled' | 'inactive';
 
-export type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
+export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived';
 
-export type ScheduleType = 'DAILY' | 'WEEKDAYS' | 'WEEKLY' | 'CUSTOM';
+export type ScheduleType = 'daily' | 'weekdays' | 'weekly' | 'custom';
 
-export type CompletionMode = 'TIME_BASED' | 'LINK_CLICK' | 'REPLY';
+export type CompletionMode = 'time_based' | 'link_click_required' | 'reply_required';
 
-export type EnrollmentStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'DROPPED';
+export type EnrollmentStatus = 'active' | 'paused' | 'completed' | 'removed';
 
 export type StepStatus =
-  | 'PENDING'
-  | 'QUEUED'
-  | 'SENT'
-  | 'DELIVERED'
-  | 'OPENED'
-  | 'CLICKED'
-  | 'COMPLETED'
-  | 'FAILED';
+  | 'pending'
+  | 'queued'
+  | 'sent'
+  | 'delivered'
+  | 'opened'
+  | 'clicked'
+  | 'completed'
+  | 'failed';
 
-export type MessageStatus = 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'BOUNCED';
+export type MessageStatus = 'queued' | 'sending' | 'sent' | 'delivered' | 'failed' | 'bounced';
 
 export interface ApiResponse<T = unknown> {
+  ok: true;
   data: T;
-  message?: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -38,9 +38,11 @@ export interface PaginatedResponse<T> {
 }
 
 export interface ApiError {
-  statusCode: number;
-  message: string;
-  errors?: Record<string, string[]>;
+  ok: false;
+  error: {
+    code: string;
+    message: string;
+  };
 }
 
 export interface MessageJobData {
@@ -49,6 +51,39 @@ export interface MessageJobData {
   channels: string[];
 }
 
-export interface ScheduleJobData {
+export interface TenantJobData {
+  organizationId?: string;
+}
+
+export interface TestJobData {
+  requestedBy: string;
+  organizationId: string;
+  requestedAt: string;
+}
+
+export interface ScheduleDueStepsJobData {
+  scheduledAt: string;
+}
+
+export interface SendMessageJobData {
+  enrollmentId: string;
+  campaignStepId: string;
+  channel: Channel;
+}
+
+export interface ProcessProviderEventJobData {
+  provider: string;
+  eventId: string;
+}
+
+export interface EvaluateProgressJobData {
+  enrollmentId: string;
+}
+
+export interface CleanupExpiredTokensJobData {
+  requestedAt: string;
+}
+
+export interface ScheduleJobData extends TenantJobData {
   organizationId: string;
 }

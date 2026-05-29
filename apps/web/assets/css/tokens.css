@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light;
+
+  --dd-color-white: #ffffff;
+  --dd-color-black: #111827;
+  --dd-color-gray-50: #f8faf9;
+  --dd-color-gray-100: #eef2ef;
+  --dd-color-gray-200: #dfe7e2;
+  --dd-color-gray-300: #cbd7d0;
+  --dd-color-gray-500: #68776f;
+  --dd-color-gray-700: #37443d;
+  --dd-color-gray-900: #17211b;
+  --dd-color-green-50: #edf9f1;
+  --dd-color-green-100: #d8f2df;
+  --dd-color-green-200: #b6e7c5;
+  --dd-color-green-500: #2f9b5f;
+  --dd-color-green-600: #247d4c;
+  --dd-color-green-700: #1f653f;
+  --dd-color-red-50: #fef2f2;
+  --dd-color-red-600: #dc2626;
+  --dd-color-amber-50: #fffbeb;
+  --dd-color-amber-700: #a16207;
+
+  --dd-color-bg: var(--dd-color-gray-50);
+  --dd-color-surface: var(--dd-color-white);
+  --dd-color-surface-muted: var(--dd-color-gray-100);
+  --dd-color-border: var(--dd-color-gray-200);
+  --dd-color-border-strong: var(--dd-color-gray-300);
+  --dd-color-text: var(--dd-color-gray-900);
+  --dd-color-text-muted: var(--dd-color-gray-500);
+  --dd-color-primary: var(--dd-color-green-600);
+  --dd-color-primary-hover: var(--dd-color-green-700);
+  --dd-color-primary-soft: var(--dd-color-green-50);
+  --dd-color-secondary: var(--dd-color-green-100);
+  --dd-color-danger: var(--dd-color-red-600);
+  --dd-color-danger-soft: var(--dd-color-red-50);
+  --dd-color-warning: var(--dd-color-amber-700);
+  --dd-color-warning-soft: var(--dd-color-amber-50);
+
+  --dd-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dd-font-size-xs: 0.75rem;
+  --dd-font-size-sm: 0.875rem;
+  --dd-font-size-md: 1rem;
+  --dd-font-size-lg: 1.125rem;
+  --dd-font-size-xl: 1.25rem;
+  --dd-font-size-2xl: 1.5rem;
+  --dd-line-height-tight: 1.2;
+  --dd-line-height-normal: 1.5;
+  --dd-line-height-relaxed: 1.7;
+  --dd-font-weight-regular: 400;
+  --dd-font-weight-medium: 500;
+  --dd-font-weight-semibold: 600;
+  --dd-font-weight-bold: 700;
+
+  --dd-space-1: 0.25rem;
+  --dd-space-2: 0.5rem;
+  --dd-space-3: 0.75rem;
+  --dd-space-4: 1rem;
+  --dd-space-5: 1.25rem;
+  --dd-space-6: 1.5rem;
+  --dd-space-8: 2rem;
+  --dd-space-10: 2.5rem;
+  --dd-space-12: 3rem;
+  --dd-space-16: 4rem;
+
+  --dd-radius-sm: 0.25rem;
+  --dd-radius-md: 0.5rem;
+  --dd-radius-lg: 0.75rem;
+  --dd-radius-pill: 999px;
+
+  --dd-border-width: 1px;
+  --dd-shadow-sm: 0 1px 2px rgb(23 33 27 / 0.06);
+  --dd-shadow-md: 0 12px 32px rgb(23 33 27 / 0.1);
+  --dd-shadow-focus: 0 0 0 3px rgb(47 155 95 / 0.22);
+
+  --dd-z-dialog: 50;
+  --dd-duration-fast: 120ms;
+  --dd-duration-normal: 180ms;
+  --dd-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+

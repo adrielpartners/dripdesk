@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dripdesk/config": ["packages/config/src/index.ts"],
+      "@dripdesk/database": ["packages/database/src/index.ts"],
+      "@dripdesk/shared": ["packages/shared/src/index.ts"]
+    }
+  }
+}

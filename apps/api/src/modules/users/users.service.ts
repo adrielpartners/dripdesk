@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantContext } from '../../common/tenant/tenant-context';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({
@@ -14,10 +15,14 @@ export class UsersService {
         firstName: true,
         lastName: true,
         role: true,
-        avatarUrl: true,
-        organizationId: true,
         createdAt: true,
         lastLoginAt: true,
+        memberships: {
+          select: {
+            organizationId: true,
+            role: true,
+          },
+        },
       },
     });
 
@@ -25,24 +30,34 @@ export class UsersService {
     return user;
   }
 
-  async findByOrganization(orgId: string) {
+  async findByOrganization(tenant: TenantContext) {
     return this.prisma.user.findMany({
-      where: { organizationId: orgId },
+      where: {
+        memberships: {
+          some: { organizationId: tenant.organizationId },
+        },
+      },
       select: {
         id: true,
         email: true,
         firstName: true,
         lastName: true,
         role: true,
-        avatarUrl: true,
         createdAt: true,
         lastLoginAt: true,
+        memberships: {
+          where: { organizationId: tenant.organizationId },
+          select: {
+            organizationId: true,
+            role: true,
+          },
+        },
       },
       orderBy: { createdAt: 'asc' },
     });
   }
 
-  async update(id: string, data: { firstName?: string; lastName?: string; avatarUrl?: string }) {
+  async update(id: string, data: { firstName?: string; lastName?: string }) {
     return this.prisma.user.update({
       where: { id },
       data,
@@ -52,27 +67,6 @@ export class UsersService {
         firstName: true,
         lastName: true,
         role: true,
-        avatarUrl: true,
-        organizationId: true,
-      },
-    });
-  }
-
-  async inviteToOrganization(email: string, orgId: string, role = 'MEMBER') {
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-
-    if (existing) {
-      return this.prisma.user.update({
-        where: { id: existing.id },
-        data: { organizationId: orgId, role: role as any },
-      });
-    }
-
-    return this.prisma.user.create({
-      data: {
-        email,
-        role: role as any,
-        organizationId: orgId,
       },
     });
   }

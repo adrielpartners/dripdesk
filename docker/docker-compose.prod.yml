@@ -1,0 +1,120 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dripdesk
+      POSTGRES_PASSWORD: ${DRIPDESK_POSTGRES_PASSWORD:?set DRIPDESK_POSTGRES_PASSWORD}
+      POSTGRES_DB: dripdesk
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dripdesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/api.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      DRIPDESK_ENV: production
+      DRIPDESK_API_PORT: 3000
+      DRIPDESK_DATABASE_URL: postgresql://dripdesk:${DRIPDESK_POSTGRES_PASSWORD:?set DRIPDESK_POSTGRES_PASSWORD}@postgres:5432/dripdesk?schema=public
+      DRIPDESK_REDIS_URL: redis://redis:6379
+    networks:
+      - internal
+      - edge
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dripdesk-api.rule=Host(`api.example.com`)"
+      - "traefik.http.routers.dripdesk-api.entrypoints=websecure"
+      - "traefik.http.routers.dripdesk-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dripdesk-api.loadbalancer.server.port=3000"
+
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      DRIPDESK_ENV: production
+      DRIPDESK_DATABASE_URL: postgresql://dripdesk:${DRIPDESK_POSTGRES_PASSWORD:?set DRIPDESK_POSTGRES_PASSWORD}@postgres:5432/dripdesk?schema=public
+      DRIPDESK_REDIS_URL: redis://redis:6379
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dripdesk-web.rule=Host(`app.example.com`)"
+      - "traefik.http.routers.dripdesk-web.entrypoints=websecure"
+      - "traefik.http.routers.dripdesk-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.dripdesk-web.loadbalancer.server.port=3001"
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  internal:
+    internal: true
+  edge:
+    external: true

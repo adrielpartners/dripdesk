@@ -1,25 +1,25 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { DashboardService } from './dashboard.service';
+import { Controller, Get, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ok } from '../../common/api-response';
+import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentOrganizationGuard } from '../../common/guards/current-organization.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { DashboardService } from './dashboard.service';
 
 @ApiTags('dashboard')
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, CurrentOrganizationGuard, RolesGuard)
+@Roles('owner', 'admin')
 @ApiBearerAuth()
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Get dashboard stats' })
-  getStats(@CurrentUser() user: any) {
-    return this.dashboardService.getStats(user.organizationId);
-  }
-
-  @Get('campaigns/:id/analytics')
-  @ApiOperation({ summary: 'Get campaign analytics' })
-  getCampaignAnalytics(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.dashboardService.getCampaignAnalytics(id, user.organizationId);
+  @ApiOperation({ summary: 'Get admin analytics dashboard metrics' })
+  async getDashboard(@CurrentTenant() tenant: TenantContext) {
+    return ok(await this.dashboardService.getDashboard(tenant));
   }
 }

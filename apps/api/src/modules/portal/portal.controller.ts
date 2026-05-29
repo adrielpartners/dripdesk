@@ -1,27 +1,48 @@
-import { Controller, Get, Post, Param, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ok } from '../../common/api-response';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { AuthenticatedUser } from '../../common/tenant/tenant-context';
 import { PortalService } from './portal.service';
 
 @ApiTags('portal')
 @Controller('portal')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles('recipient')
+@ApiBearerAuth()
 export class PortalController {
   constructor(private readonly portalService: PortalService) {}
 
-  @Get(':token')
-  @ApiOperation({ summary: 'Get enrollment info by access token' })
-  getEnrollment(@Param('token') token: string) {
-    return this.portalService.getEnrollmentByToken(token);
+  @Get()
+  @ApiOperation({ summary: 'Get recipient dashboard data' })
+  async dashboard(@CurrentUser() user: AuthenticatedUser) {
+    return ok(await this.portalService.getDashboard(user));
   }
 
-  @Get(':token/lessons')
-  @ApiOperation({ summary: 'Get lessons for enrollment' })
-  getLessons(@Param('token') token: string) {
-    return this.portalService.getLessons(token);
+  @Get('campaigns/:campaignId')
+  @ApiOperation({ summary: 'Get recipient campaign detail' })
+  async campaign(@CurrentUser() user: AuthenticatedUser, @Param('campaignId') campaignId: string) {
+    return ok(await this.portalService.getCampaign(user, campaignId));
   }
 
-  @Post(':token/unsubscribe')
-  @ApiOperation({ summary: 'Unsubscribe from campaign or globally' })
-  unsubscribe(@Param('token') token: string, @Query('campaignId') campaignId?: string) {
-    return this.portalService.unsubscribe(token, campaignId);
+  @Get('settings')
+  @ApiOperation({ summary: 'Get recipient channel settings' })
+  async settings(@CurrentUser() user: AuthenticatedUser) {
+    return ok(await this.portalService.getSettings(user));
+  }
+
+  @Post('campaigns/:campaignId/unsubscribe')
+  @ApiOperation({ summary: 'Unsubscribe recipient from one campaign' })
+  async unsubscribeCampaign(@CurrentUser() user: AuthenticatedUser, @Param('campaignId') campaignId: string) {
+    return ok(await this.portalService.unsubscribeFromCampaign(user, campaignId));
+  }
+
+  @Post('unsubscribe-all')
+  @ApiOperation({ summary: 'Unsubscribe recipient from all campaigns and channels' })
+  async unsubscribeAll(@CurrentUser() user: AuthenticatedUser) {
+    return ok(await this.portalService.unsubscribeAll(user));
   }
 }

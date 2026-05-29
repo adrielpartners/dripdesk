@@ -1,168 +1,120 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreatePersonDto } from './dto/create-person.dto';
-import { ImportPersonsDto } from './dto/import-persons.dto';
+import { UpdatePersonDto } from './dto/update-person.dto';
+import { PersonChannelDto } from './dto/person-channel.dto';
+import { PersonsRepository } from './persons.repository';
 
 @Injectable()
 export class PersonsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly persons: PersonsRepository) {}
 
-  async findAll(orgId: string, page = 1, limit = 50, search?: string) {
-    const skip = (page - 1) * limit;
-    const where = {
-      organizationId: orgId,
-      deletedAt: null,
-      ...(search && {
-        OR: [
-          { email: { contains: search, mode: 'insensitive' as const } },
-          { firstName: { contains: search, mode: 'insensitive' as const } },
-          { lastName: { contains: search, mode: 'insensitive' as const } },
-          { phone: { contains: search } },
-        ],
-      }),
+  findAll(tenant: TenantContext, page = 1, limit = 50, search?: string) {
+    const safePage = Math.max(1, page);
+    const safeLimit = Math.min(Math.max(1, limit), 100);
+    return this.persons.findManyForTenant(tenant, safePage, safeLimit, search);
+  }
+
+  findOne(tenant: TenantContext, id: string) {
+    return this.persons.findByIdForTenant(tenant, id);
+  }
+
+  async create(tenant: TenantContext, dto: CreatePersonDto) {
+    this.validateChannels(dto.channels ?? []);
+
+    try {
+      return await this.persons.createForTenant(tenant, this.normalizePerson(dto));
+    } catch (error) {
+      this.handleUniqueChannelError(error);
+      throw error;
+    }
+  }
+
+  async update(tenant: TenantContext, id: string, dto: UpdatePersonDto) {
+    if (dto.channels?.length) {
+      throw new BadRequestException('Use person channel endpoints to update channels');
+    }
+
+    return this.persons.updateForTenant(tenant, id, this.normalizePerson(dto));
+  }
+
+  archive(tenant: TenantContext, id: string) {
+    return this.persons.archiveForTenant(tenant, id);
+  }
+
+  requestDeletion(tenant: TenantContext, id: string) {
+    return this.persons.markDeletionRequestedForTenant(tenant, id);
+  }
+
+  async addChannel(tenant: TenantContext, personId: string, dto: PersonChannelDto) {
+    this.validateChannels([dto]);
+
+    try {
+      return await this.persons.createChannelForTenant(tenant, personId, this.normalizeChannel(dto));
+    } catch (error) {
+      this.handleUniqueChannelError(error);
+      throw error;
+    }
+  }
+
+  async updateChannel(
+    tenant: TenantContext,
+    personId: string,
+    channelId: string,
+    dto: Partial<PersonChannelDto>,
+  ) {
+    if (dto.channelType && dto.address) {
+      this.validateChannels([dto as PersonChannelDto]);
+    }
+
+    try {
+      return await this.persons.updateChannelForTenant(tenant, personId, channelId, dto);
+    } catch (error) {
+      this.handleUniqueChannelError(error);
+      throw error;
+    }
+  }
+
+  private normalizePerson<T extends CreatePersonDto | UpdatePersonDto>(dto: T): T {
+    return {
+      ...dto,
+      displayName: dto.displayName?.trim(),
+      timezone: dto.timezone?.trim(),
+      tags: dto.tags?.map((tag) => tag.trim()).filter(Boolean),
+      channels: dto.channels?.map((channel) => this.normalizeChannel(channel)),
     };
-
-    const [data, total] = await Promise.all([
-      this.prisma.person.findMany({
-        where,
-        include: {
-          tags: { include: { tag: true } },
-          _count: { select: { enrollments: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      this.prisma.person.count({ where }),
-    ]);
-
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
-  async findOne(id: string, orgId: string) {
-    const person = await this.prisma.person.findFirst({
-      where: { id, organizationId: orgId, deletedAt: null },
-      include: {
-        tags: { include: { tag: true } },
-        channels: true,
-        enrollments: {
-          include: { campaign: { select: { name: true, status: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        },
-      },
-    });
-
-    if (!person) throw new NotFoundException('Person not found');
-    return person;
+  private normalizeChannel<T extends PersonChannelDto | Partial<PersonChannelDto>>(dto: T): T {
+    return {
+      ...dto,
+      address: dto.address?.trim().toLowerCase(),
+    };
   }
 
-  async create(orgId: string, dto: CreatePersonDto) {
-    if (dto.email) {
-      const existing = await this.prisma.person.findUnique({
-        where: { organizationId_email: { organizationId: orgId, email: dto.email } },
-      });
-      if (existing && !existing.deletedAt) {
-        throw new ConflictException('Person with this email already exists');
+  private validateChannels(channels: PersonChannelDto[]) {
+    for (const channel of channels) {
+      const normalized = this.normalizeChannel(channel);
+
+      if (normalized.channelType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized.address)) {
+        throw new BadRequestException('Email channel address is invalid');
+      }
+
+      if (normalized.channelType === 'sms' && !/^\+[1-9]\d{1,14}$/.test(normalized.address)) {
+        throw new BadRequestException('SMS channel address must be E.164 format');
+      }
+
+      if (normalized.channelType === 'telegram' && !/^[a-z0-9_:@.-]{3,128}$/.test(normalized.address)) {
+        throw new BadRequestException('Telegram channel identifier is invalid');
       }
     }
-
-    const { tagIds, ...personData } = dto;
-
-    const person = await this.prisma.person.create({
-      data: {
-        organizationId: orgId,
-        ...personData,
-        ...(tagIds?.length && {
-          tags: {
-            create: tagIds.map((tagId) => ({ tagId })),
-          },
-        }),
-        channels: {
-          create: this.buildChannels(dto),
-        },
-      },
-      include: { tags: { include: { tag: true } }, channels: true },
-    });
-
-    return person;
   }
 
-  async update(id: string, orgId: string, dto: Partial<CreatePersonDto>) {
-    const person = await this.prisma.person.findFirst({
-      where: { id, organizationId: orgId, deletedAt: null },
-    });
-
-    if (!person) throw new NotFoundException('Person not found');
-
-    const { tagIds, ...updateData } = dto;
-
-    return this.prisma.person.update({
-      where: { id },
-      data: updateData,
-      include: { tags: { include: { tag: true } }, channels: true },
-    });
-  }
-
-  async remove(id: string, orgId: string) {
-    const person = await this.prisma.person.findFirst({
-      where: { id, organizationId: orgId, deletedAt: null },
-    });
-
-    if (!person) throw new NotFoundException('Person not found');
-
-    return this.prisma.person.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-  }
-
-  async importPersons(orgId: string, dto: ImportPersonsDto) {
-    const results = { created: 0, skipped: 0, errors: [] as string[] };
-
-    for (const personDto of dto.persons) {
-      try {
-        await this.create(orgId, personDto);
-        results.created++;
-      } catch (error) {
-        if (error instanceof ConflictException) {
-          results.skipped++;
-        } else {
-          results.errors.push(`${personDto.email ?? personDto.phone}: ${error.message}`);
-        }
-      }
+  private handleUniqueChannelError(error: unknown) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw new ConflictException('This channel already belongs to a person in this organization');
     }
-
-    return results;
-  }
-
-  async requestDeletion(id: string, orgId: string) {
-    const person = await this.prisma.person.findFirst({
-      where: { id, organizationId: orgId, deletedAt: null },
-    });
-
-    if (!person) throw new NotFoundException('Person not found');
-
-    const scheduledFor = new Date();
-    scheduledFor.setDate(scheduledFor.getDate() + 30);
-
-    await this.prisma.deletionRequest.upsert({
-      where: { personId: id },
-      update: { status: 'PENDING', scheduledFor },
-      create: { personId: id, scheduledFor },
-    });
-
-    return { message: 'Deletion request scheduled for 30 days from now' };
-  }
-
-  private buildChannels(dto: CreatePersonDto) {
-    const channels: { channel: string; identifier: string }[] = [];
-
-    if (dto.email) channels.push({ channel: 'EMAIL', identifier: dto.email });
-    if (dto.phone) channels.push({ channel: 'SMS', identifier: dto.phone });
-    if (dto.telegramId) channels.push({ channel: 'TELEGRAM', identifier: dto.telegramId });
-    if (dto.whatsappId) channels.push({ channel: 'WHATSAPP', identifier: dto.whatsappId });
-
-    return channels;
   }
 }
+

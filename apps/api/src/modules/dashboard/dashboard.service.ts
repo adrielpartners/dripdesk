@@ -1,71 +1,219 @@
 import { Injectable } from '@nestjs/common';
+import { MessageEventType } from '@prisma/client';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { PrismaService } from '../../prisma/prisma.service';
+
+const ACTIVE_CONTACT_WINDOW_DAYS = 30;
+const CAMPAIGN_PERFORMANCE_LIMIT = 20;
+
+type RateCounts = {
+  sentMessages: number;
+  openedEvents: number;
+  clickedEvents: number;
+  completedEnrollments: number;
+  totalEnrollments: number;
+};
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async getStats(orgId: string) {
-    const [totalPersons, activeCampaigns, activeEnrollments, completedEnrollments] =
-      await Promise.all([
-        this.prisma.person.count({ where: { organizationId: orgId, deletedAt: null } }),
-        this.prisma.campaign.count({ where: { organizationId: orgId, status: 'ACTIVE', deletedAt: null } }),
-        this.prisma.enrollment.count({ where: { campaign: { organizationId: orgId }, status: 'ACTIVE' } }),
-        this.prisma.enrollment.count({ where: { campaign: { organizationId: orgId }, status: 'COMPLETED' } }),
-      ]);
+  async getDashboard(tenant: TenantContext) {
+    const [activeContacts, campaignCount, summaryCounts, campaigns] = await Promise.all([
+      this.countActiveContacts(tenant),
+      this.prisma.campaign.count({
+        where: {
+          organizationId: tenant.organizationId,
+          archivedAt: null,
+        },
+      }),
+      this.findSummaryCounts(tenant),
+      this.findCampaignsForPerformanceList(tenant),
+    ]);
 
-    const recentCampaigns = await this.prisma.campaign.findMany({
-      where: { organizationId: orgId, deletedAt: null },
-      include: { _count: { select: { enrollments: true } } },
-      orderBy: { updatedAt: 'desc' },
-      take: 5,
-    });
+    const campaignMetrics = await Promise.all(
+      campaigns.map(async (campaign) => {
+        const counts = await this.findCampaignCounts(tenant, campaign.id);
 
-    const recentEnrollments = await this.prisma.enrollment.findMany({
-      where: { campaign: { organizationId: orgId } },
-      include: {
-        person: { select: { firstName: true, lastName: true, email: true } },
-        campaign: { select: { name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
-    });
-
-    return {
-      kpis: { totalPersons, activeCampaigns, activeEnrollments, completedEnrollments },
-      recentCampaigns,
-      recentEnrollments,
-    };
-  }
-
-  async getCampaignAnalytics(campaignId: string, orgId: string) {
-    const campaign = await this.prisma.campaign.findFirst({
-      where: { id: campaignId, organizationId: orgId },
-      include: {
-        steps: { where: { deletedAt: null }, orderBy: { order: 'asc' } },
-        _count: { select: { enrollments: true } },
-      },
-    });
-
-    if (!campaign) return null;
-
-    const enrollmentsByStatus = await this.prisma.enrollment.groupBy({
-      by: ['status'],
-      where: { campaignId },
-      _count: true,
-    });
-
-    const stepStats = await Promise.all(
-      campaign.steps.map(async (step) => {
-        const states = await this.prisma.enrollmentStepState.groupBy({
-          by: ['status'],
-          where: { stepId: step.id },
-          _count: true,
-        });
-        return { step: { id: step.id, name: step.name, order: step.order }, states };
+        return {
+          id: campaign.id,
+          name: campaign.name,
+          status: campaign.status,
+          activeEnrolledCount: campaign._count.enrollments,
+          openRate: this.rate(counts.openedEvents, counts.sentMessages),
+          clickRate: this.rate(counts.clickedEvents, counts.sentMessages),
+          completionRate: this.rate(counts.completedEnrollments, counts.totalEnrollments),
+          lastSentAt: campaign.messageOutbox[0]?.sentAt?.toISOString() ?? null,
+        };
       }),
     );
 
-    return { campaign, enrollmentsByStatus, stepStats };
+    return {
+      metrics: {
+        activeContacts,
+        averageOpenRate: this.rate(summaryCounts.openedEvents, summaryCounts.sentMessages),
+        averageClickRate: this.rate(summaryCounts.clickedEvents, summaryCounts.sentMessages),
+        averageCompletionRate: this.rate(summaryCounts.completedEnrollments, summaryCounts.totalEnrollments),
+      },
+      campaignCount,
+      campaignPerformance: campaignMetrics,
+      meta: {
+        activeContactWindowDays: ACTIVE_CONTACT_WINDOW_DAYS,
+        campaignPerformanceLimit: CAMPAIGN_PERFORMANCE_LIMIT,
+      },
+    };
+  }
+
+  private async countActiveContacts(tenant: TenantContext) {
+    const activeContacts = await this.prisma.enrollment.findMany({
+      where: {
+        organizationId: tenant.organizationId,
+        status: 'active',
+        enrolledAt: { gte: this.activeContactWindowStart() },
+      },
+      distinct: ['personId'],
+      select: { personId: true },
+    });
+
+    return activeContacts.length;
+  }
+
+  private async findSummaryCounts(tenant: TenantContext): Promise<RateCounts> {
+    const [sentMessages, openedEvents, clickedEvents, completedEnrollments, totalEnrollments] = await Promise.all([
+      this.prisma.messageOutbox.count({
+        where: {
+          organizationId: tenant.organizationId,
+          status: 'sent',
+          sentAt: { not: null },
+        },
+      }),
+      this.countEventsForTenant(tenant, 'opened'),
+      this.countEventsForTenant(tenant, 'clicked'),
+      this.prisma.enrollment.count({
+        where: {
+          organizationId: tenant.organizationId,
+          status: 'completed',
+        },
+      }),
+      this.prisma.enrollment.count({
+        where: {
+          organizationId: tenant.organizationId,
+          status: { not: 'removed' },
+        },
+      }),
+    ]);
+
+    return { sentMessages, openedEvents, clickedEvents, completedEnrollments, totalEnrollments };
+  }
+
+  private findCampaignsForPerformanceList(tenant: TenantContext) {
+    return this.prisma.campaign.findMany({
+      where: {
+        organizationId: tenant.organizationId,
+        archivedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        _count: {
+          select: {
+            enrollments: {
+              where: {
+                organizationId: tenant.organizationId,
+                status: 'active',
+              },
+            },
+          },
+        },
+        messageOutbox: {
+          where: {
+            organizationId: tenant.organizationId,
+            status: 'sent',
+            sentAt: { not: null },
+          },
+          select: {
+            sentAt: true,
+          },
+          orderBy: {
+            sentAt: 'desc',
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+      take: CAMPAIGN_PERFORMANCE_LIMIT,
+    });
+  }
+
+  private async findCampaignCounts(tenant: TenantContext, campaignId: string): Promise<RateCounts> {
+    const [sentMessages, openedEvents, clickedEvents, completedEnrollments, totalEnrollments] = await Promise.all([
+      this.prisma.messageOutbox.count({
+        where: {
+          organizationId: tenant.organizationId,
+          campaignId,
+          status: 'sent',
+          sentAt: { not: null },
+        },
+      }),
+      this.countEventsForCampaign(tenant, campaignId, 'opened'),
+      this.countEventsForCampaign(tenant, campaignId, 'clicked'),
+      this.prisma.enrollment.count({
+        where: {
+          organizationId: tenant.organizationId,
+          campaignId,
+          status: 'completed',
+        },
+      }),
+      this.prisma.enrollment.count({
+        where: {
+          organizationId: tenant.organizationId,
+          campaignId,
+          status: { not: 'removed' },
+        },
+      }),
+    ]);
+
+    return { sentMessages, openedEvents, clickedEvents, completedEnrollments, totalEnrollments };
+  }
+
+  private countEventsForTenant(tenant: TenantContext, eventType: MessageEventType) {
+    return this.prisma.messageEvent.count({
+      where: {
+        organizationId: tenant.organizationId,
+        eventType,
+        messageOutbox: {
+          organizationId: tenant.organizationId,
+          status: 'sent',
+          sentAt: { not: null },
+        },
+      },
+    });
+  }
+
+  private countEventsForCampaign(tenant: TenantContext, campaignId: string, eventType: MessageEventType) {
+    return this.prisma.messageEvent.count({
+      where: {
+        organizationId: tenant.organizationId,
+        eventType,
+        messageOutbox: {
+          organizationId: tenant.organizationId,
+          campaignId,
+          status: 'sent',
+          sentAt: { not: null },
+        },
+      },
+    });
+  }
+
+  private rate(numerator: number, denominator: number) {
+    if (denominator <= 0) return 0;
+    return Math.min(100, Math.round((numerator / denominator) * 1000) / 10);
+  }
+
+  private activeContactWindowStart() {
+    return new Date(Date.now() - ACTIVE_CONTACT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   }
 }

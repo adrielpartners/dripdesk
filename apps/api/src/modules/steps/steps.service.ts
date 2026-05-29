@@ -1,104 +1,61 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateStepDto } from './dto/create-step.dto';
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateStepDto as UpdateStepDtoBase } from './dto/create-step.dto';
-
-class UpdateStepDto extends PartialType(UpdateStepDtoBase) {}
+import { UpdateStepDto } from './dto/update-step.dto';
+import { StepsRepository } from './steps.repository';
 
 @Injectable()
 export class StepsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private readonly steps: StepsRepository) {}
 
-  async findByCampaign(campaignId: string, orgId: string) {
-    const campaign = await this.prisma.campaign.findFirst({
-      where: { id: campaignId, organizationId: orgId },
-    });
-
-    if (!campaign) throw new NotFoundException('Campaign not found');
-
-    return this.prisma.step.findMany({
-      where: { campaignId, deletedAt: null },
-      orderBy: { order: 'asc' },
-    });
+  findByCampaign(tenant: TenantContext, campaignId: string) {
+    return this.steps.findManyForCampaign(tenant, campaignId);
   }
 
-  async create(campaignId: string, orgId: string, dto: CreateStepDto) {
-    const campaign = await this.prisma.campaign.findFirst({
-      where: { id: campaignId, organizationId: orgId },
-    });
+  create(tenant: TenantContext, campaignId: string, dto: CreateStepDto) {
+    if (dto.status === 'published') {
+      this.assertPublishable(dto);
+    }
 
-    if (!campaign) throw new NotFoundException('Campaign not found');
-
-    const maxOrder = await this.prisma.step.aggregate({
-      where: { campaignId, deletedAt: null },
-      _max: { order: true },
-    });
-
-    const order = (maxOrder._max.order ?? 0) + 1;
-
-    return this.prisma.step.create({
-      data: {
-        campaignId,
-        order,
-        name: dto.name,
-        delayDays: dto.delayDays ?? 1,
-        smsContent: dto.smsContent,
-        smsMediaUrl: dto.smsMediaUrl,
-        telegramContent: dto.telegramContent,
-        telegramParseMode: dto.telegramParseMode ?? 'HTML',
-        telegramMediaUrl: dto.telegramMediaUrl,
-        whatsappContent: dto.whatsappContent,
-        whatsappMediaType: dto.whatsappMediaType,
-        whatsappMediaUrl: dto.whatsappMediaUrl,
-        emailSubject: dto.emailSubject,
-        emailHtmlContent: dto.emailHtmlContent,
-        emailTextContent: dto.emailTextContent,
-        externalLinkUrl: dto.externalLinkUrl,
-        sendTimeOverride: dto.sendTimeOverride,
-      },
-    });
+    return this.steps.createForCampaign(tenant, campaignId, this.normalizeStep(dto));
   }
 
-  async update(id: string, orgId: string, dto: Partial<CreateStepDto>) {
-    const step = await this.prisma.step.findFirst({
-      where: { id, deletedAt: null, campaign: { organizationId: orgId } },
-    });
+  update(tenant: TenantContext, id: string, dto: UpdateStepDto) {
+    if (dto.status === 'published') {
+      this.assertPublishable(dto);
+    }
 
-    if (!step) throw new NotFoundException('Step not found');
-
-    return this.prisma.step.update({ where: { id }, data: dto });
+    return this.steps.updateForTenant(tenant, id, this.normalizeStep(dto));
   }
 
-  async remove(id: string, orgId: string) {
-    const step = await this.prisma.step.findFirst({
-      where: { id, deletedAt: null, campaign: { organizationId: orgId } },
-    });
-
-    if (!step) throw new NotFoundException('Step not found');
-
-    return this.prisma.step.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+  archive(tenant: TenantContext, id: string) {
+    return this.steps.archiveForTenant(tenant, id);
   }
 
-  async reorder(campaignId: string, orgId: string, stepIds: string[]) {
-    const campaign = await this.prisma.campaign.findFirst({
-      where: { id: campaignId, organizationId: orgId },
-    });
+  reorder(tenant: TenantContext, campaignId: string, stepIds: string[]) {
+    return this.steps.reorderForCampaign(tenant, campaignId, stepIds);
+  }
 
-    if (!campaign) throw new NotFoundException('Campaign not found');
+  private normalizeStep<T extends CreateStepDto | UpdateStepDto>(dto: T): T {
+    return {
+      ...dto,
+      title: dto.title?.trim(),
+      defaultContent: dto.defaultContent?.trim(),
+      smsContent: dto.smsContent?.trim(),
+      telegramContent: dto.telegramContent?.trim(),
+      emailSubject: dto.emailSubject?.trim(),
+      emailBody: dto.emailBody?.trim(),
+      replyRequiredPhrases: dto.replyRequiredPhrases?.map((phrase) => phrase.trim()).filter(Boolean),
+    };
+  }
 
-    await Promise.all(
-      stepIds.map((stepId, index) =>
-        this.prisma.step.update({
-          where: { id: stepId },
-          data: { order: index + 1 },
-        }),
-      ),
-    );
+  private assertPublishable(dto: CreateStepDto | UpdateStepDto) {
+    if (!dto.title?.trim()) {
+      throw new BadRequestException('Published steps require a title');
+    }
 
-    return this.findByCampaign(campaignId, orgId);
+    if (!dto.defaultContent && !dto.smsContent && !dto.telegramContent && !dto.emailSubject && !dto.emailBody) {
+      throw new BadRequestException('Published steps require content');
+    }
   }
 }

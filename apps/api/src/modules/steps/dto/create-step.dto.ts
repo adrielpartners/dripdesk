@@ -1,17 +1,21 @@
-import { IsString, IsNotEmpty, IsOptional, IsInt, Min, IsUrl } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateStepDto {
-  @ApiProperty()
+  @ApiProperty({ example: 'Welcome lesson' })
   @IsString()
   @IsNotEmpty()
-  name: string;
+  title!: string;
 
-  @ApiPropertyOptional({ default: 1 })
+  @ApiPropertyOptional({ enum: ['draft', 'published'], default: 'draft' })
   @IsOptional()
-  @IsInt()
-  @Min(0)
-  delayDays?: number;
+  @IsIn(['draft', 'published'])
+  status?: 'draft' | 'published';
+
+  @ApiPropertyOptional({ example: 'Start here.' })
+  @IsOptional()
+  @IsString()
+  defaultContent?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -21,37 +25,7 @@ export class CreateStepDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  smsMediaUrl?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
   telegramContent?: string;
-
-  @ApiPropertyOptional({ default: 'HTML' })
-  @IsOptional()
-  @IsString()
-  telegramParseMode?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  telegramMediaUrl?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  whatsappContent?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  whatsappMediaType?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  whatsappMediaUrl?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -61,20 +35,24 @@ export class CreateStepDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  emailHtmlContent?: string;
+  emailBody?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ minimum: 0, maximum: 365 })
   @IsOptional()
-  @IsString()
-  emailTextContent?: string;
+  @IsInt()
+  @Min(0)
+  @Max(365)
+  delayDaysOverride?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: ['sms', 'telegram', 'email'], isArray: true })
   @IsOptional()
-  @IsString()
-  externalLinkUrl?: string;
+  @IsArray()
+  @IsIn(['sms', 'telegram', 'email'], { each: true })
+  channelOverrides?: Array<'sms' | 'telegram' | 'email'>;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: [String] })
   @IsOptional()
-  @IsString()
-  sendTimeOverride?: string;
+  @IsArray()
+  @IsString({ each: true })
+  replyRequiredPhrases?: string[];
 }

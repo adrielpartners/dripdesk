@@ -1,7 +1,15 @@
-import { Controller, Get, Param, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Param, Req, Res } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { Request, Response } from 'express';
 import { TrackingService } from './tracking.service';
+
+interface TrackingRequest {
+  ip?: string;
+  headers: Record<string, string | string[] | undefined>;
+}
+
+interface RedirectResponse {
+  redirect(statusCode: number, url: string): void;
+}
 
 @ApiTags('tracking')
 @Controller('l')
@@ -10,17 +18,17 @@ export class TrackingController {
 
   @Get(':token')
   @ApiOperation({ summary: 'Handle tracked link redirect' })
-  async redirect(
-    @Param('token') token: string,
-    @Query('e') enrollmentId: string,
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    const originalUrl = await this.trackingService.handleLinkClick(token, enrollmentId, {
+  async redirect(@Param('token') token: string, @Req() req: TrackingRequest, @Res() res: RedirectResponse) {
+    const originalUrl = await this.trackingService.handleLinkClick(token, {
       ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
+      userAgent: normalizeHeader(req.headers['user-agent']),
     });
 
     return res.redirect(302, originalUrl);
   }
+}
+
+function normalizeHeader(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value.join(', ');
+  return value;
 }

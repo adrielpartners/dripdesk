@@ -1,45 +1,80 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { EnrollmentsService } from './enrollments.service';
-import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ok } from '../../common/api-response';
+import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentOrganizationGuard } from '../../common/guards/current-organization.guard';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { EnrollCampaignDto, EnrollPersonDto } from './dto/create-enrollment.dto';
+import { EnrollmentsService } from './enrollments.service';
 
 @ApiTags('enrollments')
-@Controller('enrollments')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
+@UseGuards(JwtAuthGuard, CurrentOrganizationGuard, RolesGuard)
+@Roles('owner', 'admin')
+@Controller()
 export class EnrollmentsController {
   constructor(private readonly enrollmentsService: EnrollmentsService) {}
 
-  @Get()
-  findAll(@CurrentUser() user: any, @Query('page') page = 1, @Query('limit') limit = 50) {
-    return this.enrollmentsService.findAll(user.organizationId, +page, +limit);
+  @Get('enrollments/usage')
+  @ApiOperation({ summary: 'Get active contact usage for the current organization' })
+  async usage(@CurrentTenant() tenant: TenantContext) {
+    return ok(await this.enrollmentsService.findUsage(tenant));
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.enrollmentsService.findOne(id, user.organizationId);
+  @Get('campaigns/:campaignId/enrollments')
+  @ApiOperation({ summary: 'List campaign enrollments' })
+  async findByCampaign(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('campaignId') campaignId: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50',
+  ) {
+    return ok(await this.enrollmentsService.findByCampaign(tenant, campaignId, Number(page), Number(limit)));
   }
 
-  @Post()
-  @ApiOperation({ summary: 'Enroll persons into a campaign' })
-  enroll(@Body() dto: CreateEnrollmentDto, @CurrentUser() user: any) {
-    return this.enrollmentsService.enroll(user.organizationId, dto);
+  @Post('campaigns/:campaignId/enrollments')
+  @ApiOperation({ summary: 'Enroll a person in a campaign' })
+  async enrollPersonInCampaign(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('campaignId') campaignId: string,
+    @Body() dto: EnrollPersonDto,
+  ) {
+    return ok(await this.enrollmentsService.enrollPersonInCampaign(tenant, campaignId, dto.personId));
   }
 
-  @Post(':id/pause')
-  pause(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.enrollmentsService.pause(id, user.organizationId);
+  @Get('persons/:personId/enrollments')
+  @ApiOperation({ summary: 'List person enrollments' })
+  async findByPerson(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('personId') personId: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '50',
+  ) {
+    return ok(await this.enrollmentsService.findByPerson(tenant, personId, Number(page), Number(limit)));
   }
 
-  @Post(':id/resume')
-  resume(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.enrollmentsService.resume(id, user.organizationId);
+  @Post('persons/:personId/enrollments')
+  @ApiOperation({ summary: 'Enroll a person in a campaign from person detail' })
+  async enrollCampaignForPerson(
+    @CurrentTenant() tenant: TenantContext,
+    @Param('personId') personId: string,
+    @Body() dto: EnrollCampaignDto,
+  ) {
+    return ok(await this.enrollmentsService.enrollPersonInCampaign(tenant, dto.campaignId, personId));
   }
 
-  @Post(':id/drop')
-  drop(@Param('id') id: string, @CurrentUser() user: any) {
-    return this.enrollmentsService.drop(id, user.organizationId);
+  @Post('enrollments/:id/pause')
+  @ApiOperation({ summary: 'Pause an enrollment' })
+  async pause(@CurrentTenant() tenant: TenantContext, @Param('id') id: string) {
+    return ok(await this.enrollmentsService.pause(tenant, id));
+  }
+
+  @Delete('enrollments/:id')
+  @ApiOperation({ summary: 'Remove an enrollment' })
+  async remove(@CurrentTenant() tenant: TenantContext, @Param('id') id: string) {
+    return ok(await this.enrollmentsService.remove(tenant, id));
   }
 }

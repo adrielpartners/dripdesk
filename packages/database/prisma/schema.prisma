@@ -4,543 +4,610 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
-// ============ TENANCY & AUTH ============
-
-model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String?
-  firstName    String?
-  lastName     String?
-  role         UserRole @default(MEMBER)
-  avatarUrl    String?
-
-  magicLinkToken   String?   @unique
-  magicLinkExpires DateTime?
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
-
-  organizationId String?
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  sessions       Session[]
-
-  @@index([email])
-  @@index([magicLinkToken])
-}
-
-model Session {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  token     String   @unique
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-
-  @@index([token])
-  @@index([userId])
+  url      = env("DRIPDESK_DATABASE_URL")
 }
 
 model Organization {
-  id      String @id @default(cuid())
-  name    String
-  slug    String @unique
-  logoUrl String?
-
-  stripeCustomerId     String?       @unique
-  stripeSubscriptionId String?       @unique
-  billingPlanId        String?
-  billingPlan          BillingPlan?  @relation(fields: [billingPlanId], references: [id])
-  billingStatus        BillingStatus @default(TRIAL)
-  trialEndsAt          DateTime?
-
-  defaultTimezone    String  @default("UTC")
-  defaultSenderEmail String?
-  defaultSenderPhone String?
-
-  twilioAccountSid  String?
-  twilioAuthToken   String?
-  twilioPhoneNumber String?
-
-  telegramBotToken String?
-
-  whatsappBusinessId String?
-  whatsappPhoneId    String?
-  whatsappToken      String?
-
-  smtpHost      String?
-  smtpPort      Int?
-  smtpUser      String?
-  smtpPassword  String?
-  emailProvider EmailProvider?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users          User[]
-  campaigns      Campaign[]
-  persons        Person[]
-  tags           Tag[]
-  billingHistory BillingHistory[]
-
-  @@index([slug])
-}
-
-// ============ BILLING ============
-
-model BillingPlan {
-  id           String  @id @default(cuid())
-  name         String  @unique
-  displayName  String
-  price        Decimal @db.Decimal(10, 2)
-  stripePriceId String? @unique
-  activeContactsLimit Int
-  campaignsLimit      Int?
-  isLifetime          Boolean @default(false)
-  features     Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organizations Organization[]
-}
-
-model BillingHistory {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  stripeInvoiceId String?  @unique
-  amount          Decimal  @db.Decimal(10, 2)
-  currency        String   @default("USD")
-  status          String
-  paidAt          DateTime?
-
-  createdAt DateTime @default(now())
-
-  @@index([organizationId])
-}
-
-// ============ CAMPAIGNS ============
-
-model Campaign {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name            String
-  description     String?
-  status          CampaignStatus @default(DRAFT)
+  slug            String   @unique
+  defaultTimezone String   @default("UTC") @map("default_timezone")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  scheduleType   ScheduleType @default(DAILY)
-  customSchedule Json?
-  timezone       String       @default("UTC")
-  sendTime       String       @default("09:00")
-
-  completionMode CompletionMode @default(TIME_BASED)
-  completionDays Int            @default(1)
-
-  channelsEnabled String[]
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  publishedAt DateTime?
-  archivedAt  DateTime?
-  deletedAt   DateTime?
-
-  steps        Step[]
-  enrollments  Enrollment[]
+  members OrganizationMember[]
+  persons Person[]
+  personChannels PersonChannel[]
+  campaigns Campaign[]
+  enrollments Enrollment[]
+  messageOutbox MessageOutbox[]
+  messageEvents MessageEvent[]
   trackedLinks TrackedLink[]
+  providerCredentials ProviderCredential[]
+  unsubscribeTokens UnsubscribeToken[]
+  unsubscribeEvents UnsubscribeEvent[]
+  billingSubscription BillingSubscription?
+  inviteTokens        InviteToken[]
 
-  @@index([organizationId])
-  @@index([status])
+  @@index([slug], map: "organizations_slug_idx")
+  @@map("organizations")
 }
 
-model Step {
-  id         String   @id @default(cuid())
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+model User {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique
+  passwordHash String?   @map("password_hash")
+  firstName    String?   @map("first_name")
+  lastName     String?   @map("last_name")
+  role         UserRole  @default(recipient)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
 
-  order     Int
-  name      String
-  delayDays Int @default(1)
+  memberships         OrganizationMember[]
+  passwordResetTokens PasswordResetToken[]
+  personRecords       Person[]
+  createdCampaigns    Campaign[]
+  createdInvites      InviteToken[]
 
-  smsContent    String?
-  smsMediaUrl   String?
-
-  telegramContent   String?
-  telegramParseMode String? @default("HTML")
-  telegramMediaUrl  String?
-
-  whatsappContent   String?
-  whatsappMediaType String?
-  whatsappMediaUrl  String?
-
-  emailSubject      String?
-  emailHtmlContent  String?  @db.Text
-  emailTextContent  String?  @db.Text
-
-  externalLinkUrl  String?
-  sendTimeOverride String?
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  trackedLinks TrackedLink[]
-  stepStates   EnrollmentStepState[]
-
-  @@unique([campaignId, order])
-  @@index([campaignId])
+  @@index([email], map: "users_email_idx")
+  @@map("users")
 }
-
-// ============ PERSONS ============
 
 model Person {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  id                  String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String       @map("organization_id") @db.Uuid
+  userId              String?      @map("user_id") @db.Uuid
+  displayName         String       @map("display_name")
+  timezone            String?      @map("timezone")
+  status              PersonStatus @default(active)
+  tags                String[]     @default([])
+  deletionRequestedAt DateTime?    @map("deletion_requested_at") @db.Timestamptz(6)
+  archivedAt          DateTime?    @map("archived_at") @db.Timestamptz(6)
+  createdAt           DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  email       String?
-  phone       String?
-  telegramId  String?
-  whatsappId  String?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  channels     PersonChannel[]
+  enrollments Enrollment[]
+  messageOutbox MessageOutbox[]
+  trackedLinks TrackedLink[]
+  unsubscribeTokens UnsubscribeToken[]
+  unsubscribeEvents UnsubscribeEvent[]
 
-  firstName String?
-  lastName  String?
-  timezone  String?
-
-  preferredChannels String[] @default(["EMAIL", "SMS"])
-
-  globallyUnsubscribed   Boolean   @default(false)
-  globallyUnsubscribedAt DateTime?
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-
-  tags               PersonTag[]
-  channels           PersonChannel[]
-  enrollments        Enrollment[]
-  unsubscribeEvents  UnsubscribeEvent[]
-  deletionRequest    DeletionRequest?
-
-  @@unique([organizationId, email])
-  @@unique([organizationId, phone])
-  @@index([organizationId])
-  @@index([email])
-  @@index([phone])
+  @@index([organizationId, status], map: "persons_organization_id_status_idx")
+  @@index([organizationId, displayName], map: "persons_organization_id_display_name_idx")
+  @@index([userId], map: "persons_user_id_idx")
+  @@map("persons")
 }
 
 model PersonChannel {
-  id       String @id @default(cuid())
-  personId String
-  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  id                 String                          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String                          @map("organization_id") @db.Uuid
+  personId           String                          @map("person_id") @db.Uuid
+  channelType        PersonChannelType               @map("channel_type")
+  address            String
+  verificationStatus PersonChannelVerificationStatus @default(unverified) @map("verification_status")
+  enabled            Boolean                         @default(true)
+  unsubscribed       Boolean                         @default(false)
+  suppressed         Boolean                         @default(false)
+  providerMetadata   Json?                           @map("provider_metadata")
+  createdAt          DateTime                        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime                        @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  channel    String
-  identifier String
-  isVerified Boolean   @default(false)
-  optedOut   Boolean   @default(false)
-  optedOutAt DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  messageOutbox MessageOutbox[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([personId, channel])
-  @@index([personId])
+  @@unique([organizationId, channelType, address], map: "person_channels_organization_id_channel_type_address_key")
+  @@index([organizationId, channelType], map: "person_channels_organization_id_channel_type_idx")
+  @@index([personId], map: "person_channels_person_id_idx")
+  @@map("person_channels")
 }
 
-model Tag {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+model Campaign {
+  id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String               @map("organization_id") @db.Uuid
+  createdById    String               @map("created_by_id") @db.Uuid
+  name           String
+  description    String?
+  status         CampaignStatus       @default(draft)
+  scheduleType   CampaignScheduleType @default(daily) @map("schedule_type")
+  scheduleConfig Json?                @map("schedule_config")
+  progressRule   CampaignProgressRule @default(time_based) @map("progress_rule")
+  mode           CampaignMode         @default(standard)
+  defaultChannels PersonChannelType[] @default([email]) @map("default_channels")
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @map("updated_at") @db.Timestamptz(6)
+  activatedAt    DateTime?            @map("activated_at") @db.Timestamptz(6)
+  archivedAt     DateTime?            @map("archived_at") @db.Timestamptz(6)
 
-  name  String
-  color String? @default("#10B981")
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  steps        CampaignStep[]
+  enrollments  Enrollment[]
+  messageOutbox MessageOutbox[]
+  trackedLinks TrackedLink[]
+  unsubscribeTokens UnsubscribeToken[]
+  unsubscribeEvents UnsubscribeEvent[]
 
-  createdAt DateTime @default(now())
-
-  persons PersonTag[]
-
-  @@unique([organizationId, name])
-  @@index([organizationId])
+  @@index([organizationId, status], map: "campaigns_organization_id_status_idx")
+  @@index([organizationId, createdAt], map: "campaigns_organization_id_created_at_idx")
+  @@map("campaigns")
 }
 
-model PersonTag {
-  personId String
-  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
-  tagId    String
-  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+model CampaignStep {
+  id                   String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId           String             @map("campaign_id") @db.Uuid
+  stepOrder            Int                @map("step_order")
+  title                String
+  status               CampaignStepStatus @default(draft)
+  defaultContent       String?            @map("default_content")
+  smsContent           String?            @map("sms_content")
+  telegramContent      String?            @map("telegram_content")
+  emailSubject         String?            @map("email_subject")
+  emailBody            String?            @map("email_body")
+  delayDaysOverride    Int?               @map("delay_days_override")
+  channelOverrides     PersonChannelType[] @default([]) @map("channel_overrides")
+  replyRequiredPhrases String[]           @default([]) @map("reply_required_phrases")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  archivedAt           DateTime?          @map("archived_at") @db.Timestamptz(6)
 
-  createdAt DateTime @default(now())
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  enrollmentStepStates EnrollmentStepState[]
+  messageOutbox MessageOutbox[]
+  trackedLinks TrackedLink[]
 
-  @@id([personId, tagId])
+  @@unique([campaignId, stepOrder], map: "campaign_steps_campaign_id_step_order_key")
+  @@index([campaignId, status], map: "campaign_steps_campaign_id_status_idx")
+  @@map("campaign_steps")
 }
-
-// ============ ENROLLMENTS ============
 
 model Enrollment {
-  id         String   @id @default(cuid())
-  personId   String
-  person     Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String           @map("organization_id") @db.Uuid
+  campaignId       String           @map("campaign_id") @db.Uuid
+  personId         String           @map("person_id") @db.Uuid
+  status           EnrollmentStatus @default(active)
+  currentStepOrder Int              @default(1) @map("current_step_order")
+  enrolledAt       DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz(6)
+  pausedAt         DateTime?        @map("paused_at") @db.Timestamptz(6)
+  removedAt        DateTime?        @map("removed_at") @db.Timestamptz(6)
+  completedAt      DateTime?        @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  status           EnrollmentStatus @default(ACTIVE)
-  enrolledAt       DateTime         @default(now())
-  currentStepOrder Int              @default(1)
-  nextStepAt       DateTime?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  stepStates   EnrollmentStepState[]
+  messageOutbox MessageOutbox[]
+  messageEvents MessageEvent[]
+  trackedLinks TrackedLink[]
+  unsubscribeTokens UnsubscribeToken[]
+  unsubscribeEvents UnsubscribeEvent[]
 
-  completedAt           DateTime?
-  completionPercentage  Float     @default(0)
-
-  totalOpens  Int @default(0)
-  totalClicks Int @default(0)
-
-  accessToken String @unique @default(cuid())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  stepStates EnrollmentStepState[]
-  messages   MessageOutbox[]
-
-  @@unique([personId, campaignId])
-  @@index([personId])
-  @@index([campaignId])
-  @@index([status])
-  @@index([nextStepAt])
-  @@index([accessToken])
+  @@unique([personId, campaignId], map: "enrollments_person_id_campaign_id_key")
+  @@index([organizationId, status], map: "enrollments_organization_id_status_idx")
+  @@index([campaignId, status], map: "enrollments_campaign_id_status_idx")
+  @@index([personId, status], map: "enrollments_person_id_status_idx")
+  @@index([organizationId, enrolledAt], map: "enrollments_organization_id_enrolled_at_idx")
+  @@map("enrollments")
 }
 
 model EnrollmentStepState {
-  id           String     @id @default(cuid())
-  enrollmentId String
-  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  stepId       String
-  step         Step       @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  enrollmentId   String                    @map("enrollment_id") @db.Uuid
+  campaignStepId String                    @map("campaign_step_id") @db.Uuid
+  stepOrder      Int                       @map("step_order")
+  status         EnrollmentStepStateStatus @default(pending)
+  sentAt         DateTime?                 @map("sent_at") @db.Timestamptz(6)
+  deliveredAt    DateTime?                 @map("delivered_at") @db.Timestamptz(6)
+  clickedAt      DateTime?                 @map("clicked_at") @db.Timestamptz(6)
+  repliedAt      DateTime?                 @map("replied_at") @db.Timestamptz(6)
+  completedAt    DateTime?                 @map("completed_at") @db.Timestamptz(6)
+  failedAt       DateTime?                 @map("failed_at") @db.Timestamptz(6)
+  skippedAt      DateTime?                 @map("skipped_at") @db.Timestamptz(6)
+  unsubscribedAt DateTime?                 @map("unsubscribed_at") @db.Timestamptz(6)
+  createdAt      DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime                  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  status StepStatus @default(PENDING)
+  enrollment   Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  campaignStep CampaignStep @relation(fields: [campaignStepId], references: [id], onDelete: Cascade)
 
-  scheduledAt  DateTime?
-  sentAt       DateTime?
-  deliveredAt  DateTime?
-
-  openedAt     DateTime?
-  openedCount  Int       @default(0)
-  firstClickedAt DateTime?
-  clickedCount   Int     @default(0)
-
-  completedAt       DateTime?
-  completionMethod  String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([enrollmentId, stepId])
-  @@index([enrollmentId])
-  @@index([stepId])
-  @@index([status])
-  @@index([scheduledAt])
+  @@unique([enrollmentId, campaignStepId], map: "enrollment_step_states_enrollment_id_campaign_step_id_key")
+  @@index([enrollmentId, status], map: "enrollment_step_states_enrollment_id_status_idx")
+  @@index([campaignStepId], map: "enrollment_step_states_campaign_step_id_idx")
+  @@map("enrollment_step_states")
 }
 
-// ============ MESSAGING ============
-
 model MessageOutbox {
-  id           String     @id @default(cuid())
-  enrollmentId String
-  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
-  stepId       String
-  step         Step       @relation(fields: [stepId], references: [id])
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String             @map("organization_id") @db.Uuid
+  enrollmentId    String             @map("enrollment_id") @db.Uuid
+  campaignId      String             @map("campaign_id") @db.Uuid
+  campaignStepId  String             @map("campaign_step_id") @db.Uuid
+  personId        String             @map("person_id") @db.Uuid
+  personChannelId String             @map("person_channel_id") @db.Uuid
+  channelType     PersonChannelType  @map("channel_type")
+  status          MessageOutboxStatus @default(prepared)
+  subject         String?
+  body            String
+  provider        String?
+  providerMessageId String?          @map("provider_message_id")
+  preparedAt      DateTime           @default(now()) @map("prepared_at") @db.Timestamptz(6)
+  sentAt          DateTime?          @map("sent_at") @db.Timestamptz(6)
+  failedAt        DateTime?          @map("failed_at") @db.Timestamptz(6)
+  errorMessage    String?            @map("error_message")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  channel String
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollment    Enrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignStep  CampaignStep  @relation(fields: [campaignStepId], references: [id], onDelete: Cascade)
+  person        Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
+  personChannel PersonChannel @relation(fields: [personChannelId], references: [id], onDelete: Restrict)
+  events        MessageEvent[]
+  trackedLinks  TrackedLink[]
+  unsubscribeTokens UnsubscribeToken[]
 
-  recipientId      String
-  recipientAddress String
-
-  subject        String?
-  contentPreview String?  @db.Text
-
-  status MessageStatus @default(QUEUED)
-
-  providerMessageId String?  @unique
-  providerResponse  Json?
-
-  errorMessage String?  @db.Text
-  retryCount   Int      @default(0)
-  maxRetries   Int      @default(3)
-  nextRetryAt  DateTime?
-
-  createdAt   DateTime  @default(now())
-  sentAt      DateTime?
-  deliveredAt DateTime?
-
-  events MessageEvent[]
-
-  @@index([enrollmentId])
-  @@index([status])
-  @@index([createdAt])
+  @@unique([enrollmentId, campaignStepId, channelType], map: "message_outbox_enrollment_id_campaign_step_id_channel_type_key")
+  @@index([organizationId, status], map: "message_outbox_organization_id_status_idx")
+  @@index([enrollmentId], map: "message_outbox_enrollment_id_idx")
+  @@index([campaignStepId], map: "message_outbox_campaign_step_id_idx")
+  @@map("message_outbox")
 }
 
 model MessageEvent {
-  id        String        @id @default(cuid())
-  messageId String
-  message   MessageOutbox @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  enrollmentId   String?          @map("enrollment_id") @db.Uuid
+  messageOutboxId String?         @map("message_outbox_id") @db.Uuid
+  trackedLinkId  String?          @map("tracked_link_id") @db.Uuid
+  eventType      MessageEventType @map("event_type")
+  metadata       Json?
+  occurredAt     DateTime         @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  eventType String
-  eventData Json?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment?  @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
+  messageOutbox MessageOutbox? @relation(fields: [messageOutboxId], references: [id], onDelete: SetNull)
+  trackedLink  TrackedLink? @relation(fields: [trackedLinkId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-
-  @@index([messageId])
-  @@index([eventType])
-  @@index([createdAt])
+  @@index([organizationId, eventType], map: "message_events_organization_id_event_type_idx")
+  @@index([enrollmentId], map: "message_events_enrollment_id_idx")
+  @@index([messageOutboxId], map: "message_events_message_outbox_id_idx")
+  @@index([trackedLinkId], map: "message_events_tracked_link_id_idx")
+  @@map("message_events")
 }
-
-// ============ TRACKING ============
 
 model TrackedLink {
-  id         String   @id @default(cuid())
-  campaignId String
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  stepId     String?
-  step       Step?    @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  enrollmentId    String    @map("enrollment_id") @db.Uuid
+  campaignId      String    @map("campaign_id") @db.Uuid
+  campaignStepId  String    @map("campaign_step_id") @db.Uuid
+  personId        String    @map("person_id") @db.Uuid
+  messageOutboxId String?   @map("message_outbox_id") @db.Uuid
+  token           String    @unique
+  originalUrl     String    @map("original_url")
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  clickedAt       DateTime? @map("clicked_at") @db.Timestamptz(6)
+  clickCount      Int       @default(0) @map("click_count")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  originalUrl String
-  linkToken   String @unique
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment   @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  campaign     Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaignStep CampaignStep @relation(fields: [campaignStepId], references: [id], onDelete: Cascade)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  messageOutbox MessageOutbox? @relation(fields: [messageOutboxId], references: [id], onDelete: SetNull)
+  events       MessageEvent[]
 
-  totalClicks  Int @default(0)
-  uniqueClicks Int @default(0)
-
-  createdAt DateTime @default(now())
-
-  linkClicks TrackedLinkClick[]
-
-  @@index([campaignId])
-  @@index([linkToken])
+  @@index([organizationId], map: "tracked_links_organization_id_idx")
+  @@index([enrollmentId], map: "tracked_links_enrollment_id_idx")
+  @@index([campaignStepId], map: "tracked_links_campaign_step_id_idx")
+  @@map("tracked_links")
 }
 
-model TrackedLinkClick {
-  id         String      @id @default(cuid())
-  linkId     String
-  link       TrackedLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+model ProviderCredential {
+  id              String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String                   @map("organization_id") @db.Uuid
+  providerType    ProviderCredentialType   @map("provider_type")
+  encryptedConfig String                   @map("encrypted_config")
+  maskedConfig    Json                     @map("masked_config")
+  twilioAccountSid String?                @map("twilio_account_sid")
+  status          ProviderCredentialStatus @default(configured)
+  lastTestedAt    DateTime?                @map("last_tested_at") @db.Timestamptz(6)
+  lastError       String?                  @map("last_error")
+  createdAt       DateTime                 @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime                 @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  enrollmentId String?
-  ipAddress    String?
-  userAgent    String?
-  clickedAt    DateTime @default(now())
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
-  @@index([linkId])
-  @@index([enrollmentId])
+  @@unique([organizationId, providerType], map: "provider_credentials_organization_id_provider_type_key")
+  @@index([twilioAccountSid], map: "provider_credentials_twilio_account_sid_idx")
+  @@index([organizationId], map: "provider_credentials_organization_id_idx")
+  @@map("provider_credentials")
 }
 
-// ============ UNSUBSCRIBE & DELETION ============
+model UnsubscribeToken {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String    @map("organization_id") @db.Uuid
+  personId        String    @map("person_id") @db.Uuid
+  campaignId      String?   @map("campaign_id") @db.Uuid
+  enrollmentId    String?   @map("enrollment_id") @db.Uuid
+  messageOutboxId String?   @map("message_outbox_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  usedAt          DateTime? @map("used_at") @db.Timestamptz(6)
+  expiresAt       DateTime? @map("expires_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  campaign     Campaign?    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  enrollment   Enrollment?  @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  messageOutbox MessageOutbox? @relation(fields: [messageOutboxId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId], map: "unsubscribe_tokens_organization_id_idx")
+  @@index([personId], map: "unsubscribe_tokens_person_id_idx")
+  @@index([campaignId], map: "unsubscribe_tokens_campaign_id_idx")
+  @@map("unsubscribe_tokens")
+}
 
 model UnsubscribeEvent {
-  id         String  @id @default(cuid())
-  personId   String
-  person     Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
-  campaignId String?
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  personId       String           @map("person_id") @db.Uuid
+  campaignId     String?          @map("campaign_id") @db.Uuid
+  enrollmentId   String?          @map("enrollment_id") @db.Uuid
+  eventType      UnsubscribeEventType @map("event_type")
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  channel String?
-  reason  String?
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  person       Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  campaign     Campaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  enrollment   Enrollment?  @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-
-  @@index([personId])
-  @@index([campaignId])
+  @@index([organizationId, eventType], map: "unsubscribe_events_organization_id_event_type_idx")
+  @@index([personId], map: "unsubscribe_events_person_id_idx")
+  @@map("unsubscribe_events")
 }
 
-model DeletionRequest {
-  id       String @id @default(cuid())
-  personId String @unique
-  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+model PasswordResetToken {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  status       DeletionStatus @default(PENDING)
-  requestedAt  DateTime       @default(now())
-  scheduledFor DateTime?
-  completedAt  DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([status])
+  @@index([userId], map: "password_reset_tokens_user_id_idx")
+  @@index([expiresAt], map: "password_reset_tokens_expires_at_idx")
+  @@map("password_reset_tokens")
 }
 
-// ============ ENUMS ============
+model BillingSubscription {
+  id                   String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId       String        @unique @map("organization_id") @db.Uuid
+  planId               String        @default("free") @map("plan_id")
+  status               BillingStatus @default(inactive)
+  activeContactLimit   Int?          @map("active_contact_limit")
+  stripeCustomerId     String?       @map("stripe_customer_id")
+  stripeSubscriptionId String?       @unique @map("stripe_subscription_id")
+  currentPeriodEnd     DateTime?     @map("current_period_end") @db.Timestamptz(6)
+  cancelAtPeriodEnd    Boolean       @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status], map: "billing_subscriptions_organization_id_status_idx")
+  @@index([stripeCustomerId], map: "billing_subscriptions_stripe_customer_id_idx")
+  @@map("billing_subscriptions")
+}
+
+model OrganizationMember {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  userId         String                 @map("user_id") @db.Uuid
+  role           OrganizationMemberRole
+  createdAt      DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId], map: "organization_members_organization_id_user_id_key")
+  @@index([organizationId], map: "organization_members_organization_id_idx")
+  @@index([userId], map: "organization_members_user_id_idx")
+  @@map("organization_members")
+}
+
+model InviteToken {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  invitedBy      String   @map("invited_by") @db.Uuid
+  email          String
+  role           String   @default("admin")
+  tokenHash      String   @unique @map("token_hash")
+  usedAt         DateTime? @map("used_at") @db.Timestamptz(6)
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedByUser User        @relation(fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  @@index([organizationId], map: "invite_tokens_organization_id_idx")
+  @@index([email], map: "invite_tokens_email_idx")
+  @@map("invite_tokens")
+}
 
 enum UserRole {
-  OWNER
-  ADMIN
-  MEMBER
+  owner
+  admin
+  recipient
+
+  @@map("user_role")
 }
 
-enum BillingStatus {
-  TRIAL
-  ACTIVE
-  PAST_DUE
-  CANCELED
-  INACTIVE
+enum OrganizationMemberRole {
+  owner
+  admin
+
+  @@map("organization_member_role")
+}
+
+enum PersonStatus {
+  active
+  archived
+  deletion_requested
+
+  @@map("person_status")
+}
+
+enum PersonChannelType {
+  sms
+  telegram
+  email
+
+  @@map("person_channel_type")
+}
+
+enum PersonChannelVerificationStatus {
+  unverified
+  verified
+
+  @@map("person_channel_verification_status")
 }
 
 enum CampaignStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  COMPLETED
-  ARCHIVED
+  draft
+  active
+  paused
+  completed
+  archived
+
+  @@map("campaign_status")
 }
 
-enum ScheduleType {
-  DAILY
-  WEEKDAYS
-  WEEKLY
-  CUSTOM
+enum CampaignScheduleType {
+  daily
+  weekdays
+  monday_wednesday_friday
+  custom_interval
+  custom_days_of_week
+
+  @@map("campaign_schedule_type")
 }
 
-enum CompletionMode {
-  TIME_BASED
-  LINK_CLICK
-  REPLY
+enum CampaignProgressRule {
+  time_based
+  link_click_required
+  reply_required
+
+  @@map("campaign_progress_rule")
+}
+
+enum CampaignMode {
+  standard
+  advanced
+
+  @@map("campaign_mode")
+}
+
+enum CampaignStepStatus {
+  draft
+  published
+  archived
+
+  @@map("campaign_step_status")
 }
 
 enum EnrollmentStatus {
-  ACTIVE
-  PAUSED
-  COMPLETED
-  DROPPED
+  active
+  paused
+  completed
+  removed
+
+  @@map("enrollment_status")
 }
 
-enum StepStatus {
-  PENDING
-  QUEUED
-  SENT
-  DELIVERED
-  OPENED
-  CLICKED
-  COMPLETED
-  FAILED
+enum EnrollmentStepStateStatus {
+  pending
+  queued
+  sent
+  delivered
+  clicked
+  replied
+  completed
+  failed
+  skipped
+  unsubscribed
+
+  @@map("enrollment_step_state_status")
 }
 
-enum MessageStatus {
-  QUEUED
-  SENDING
-  SENT
-  DELIVERED
-  FAILED
-  BOUNCED
+enum MessageOutboxStatus {
+  prepared
+  sending
+  sent
+  failed
+
+  @@map("message_outbox_status")
 }
 
-enum EmailProvider {
-  SMTP
-  BREVO
-  SENDGRID
-  MAILGUN
+enum MessageEventType {
+  queued
+  prepared
+  sent
+  delivered
+  failed
+  opened
+  clicked
+  replied
+  completed
+  unsubscribed
+
+  @@map("message_event_type")
 }
 
-enum DeletionStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
+enum ProviderCredentialType {
+  twilio
+  telegram
+  smtp
+
+  @@map("provider_credential_type")
+}
+
+enum ProviderCredentialStatus {
+  configured
+  verified
+  failed
+
+  @@map("provider_credential_status")
+}
+
+enum UnsubscribeEventType {
+  campaign_unsubscribed
+  global_unsubscribed
+  deletion_requested
+
+  @@map("unsubscribe_event_type")
+}
+
+enum BillingStatus {
+  trial
+  active
+  past_due
+  canceled
+  inactive
+
+  @@map("billing_status")
 }
