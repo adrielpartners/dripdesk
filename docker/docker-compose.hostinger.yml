@@ -1,0 +1,105 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dripdesk
+      POSTGRES_PASSWORD: ${DRIPDESK_POSTGRES_PASSWORD:?set DRIPDESK_POSTGRES_PASSWORD}
+      POSTGRES_DB: dripdesk
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dripdesk"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    image: ghcr.io/adrielpartners/dripdesk-api:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DRIPDESK_ENV: production
+      DRIPDESK_API_PORT: 3000
+      DRIPDESK_REDIS_URL: redis://redis:6379
+    networks:
+      - edge
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  worker:
+    image: ghcr.io/adrielpartners/dripdesk-worker:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DRIPDESK_ENV: production
+      DRIPDESK_REDIS_URL: redis://redis:6379
+      DRIPDESK_PUBLIC_API_URL: http://api:3000/api
+      DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
+    networks:
+      - internal
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/adrielpartners/dripdesk-web:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
+      DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  internal:
+    internal: true
+  edge:
+    external: true
