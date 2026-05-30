@@ -10,7 +10,8 @@ RUN pnpm install --frozen-lockfile
 
 FROM deps AS build
 COPY . .
-RUN pnpm turbo build --filter=@dripdesk/worker
+RUN pnpm turbo build --filter=@dripdesk/worker && \
+    ln -s $(find node_modules/.pnpm -path "*/node_modules/.prisma" -type d | head -1) node_modules/.prisma
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
