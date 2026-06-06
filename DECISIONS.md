@@ -1,9 +1,9 @@
 # DECISIONS.md
 
-Version: 1.0  
+Version: 1.1  
 Project: DripDesk  
 Repository: `dripdesk`  
-Last Updated: 2026-05-28
+Last Updated: 2026-06-05
 
 ---
 
@@ -706,3 +706,81 @@ Password hashes are stored using a salted scrypt hash with the configured passwo
 ## Reversibility
 
 Moderate. The API can move to server-side sessions later, but guards, clients, and auth flows would need coordinated changes.
+
+---
+
+# Decision 024: GitHub Container Registry image pipeline for Hostinger deployment
+
+## Decision
+
+DripDesk will publish Docker images to GitHub Container Registry (ghcr.io) via GitHub Actions, and deploy to Hostinger VPS using pre-built images via `docker-compose.hostinger.yml`.
+
+## Rationale
+
+Hostinger Docker Manager supports Compose-from-URL but cannot build images from source. Pre-published images on GHCR remove the build step from deployment, making Hostinger's web UI the sole deploy surface. GitHub Actions builds all three images (api, worker, web) on every push to `main` and pushes them to `ghcr.io/adrielpartners/dripdesk-*`.
+
+## Tradeoffs
+
+- Adds CI build time (~5 min) per `main` push.
+- GitHub Packages container storage counts toward the account limit.
+- Version tags are `latest`-only for now; pinned versions would need a tagging strategy.
+
+## Date Adopted
+
+2026-05-29
+
+## Reversibility
+
+Easy. Compose can switch back to `build: .` for CLI-based deploys without changing any application code.
+
+---
+
+# Decision 025: Hostinger compose file separated from VPS compose file
+
+## Decision
+
+A separate `docker/docker-compose.hostinger.yml` was created for Hostinger Docker Manager, diverging from `docker/docker-compose.prod.yml` which is used for CLI deploys on the VPS.
+
+## Rationale
+
+Hostinger's Docker Manager requires pre-built images from GHCR and uses a different network topology (`edge` network for Traefik, `internal` for inter-service). The prod compose uses `build: .` for building from source on the VPS. Keeping them separate avoids fragile conditionals and lets each compose file match its target environment precisely.
+
+## Tradeoffs
+
+- Two compose files to maintain instead of one.
+- Environment variables and `.env` expectations must be kept in sync manually.
+- Adds one more file to review when changing deployment config.
+
+## Date Adopted
+
+2026-05-29
+
+## Reversibility
+
+Easy. One file can be deleted if deployment environments converge.
+
+---
+
+# Decision 026: External .env file for production secrets instead of inline compose vars
+
+## Decision
+
+Production compose files use `env_file` to load sensitive configuration (DB URL, API keys) from a `.env` file on the host, rather than inlining them in the compose YAML.
+
+## Rationale
+
+Inlining `${DRIPDESK_POSTGRES_PASSWORD}` in compose causes Docker Compose variable interpolation errors when the variable is not set in the shell environment (as happened during initial VPS deploy). Using `env_file` loads all values directly from `.env` without interpolation issues, and keeps secrets out of version control.
+
+## Tradeoffs
+
+- The `.env` on the VPS must be manually created or deployed out-of-band.
+- The compose file must explicitly declare which env vars it overrides inline (Redis URL, env name, etc.).
+- `env_file` paths are relative to the compose file location, not the working directory.
+
+## Date Adopted
+
+2026-05-29
+
+## Reversibility
+
+Easy. Can switch back to inline variables if a secret management solution is adopted later.
