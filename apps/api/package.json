@@ -8,7 +8,7 @@
     "start": "node dist/apps/api/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"No API lint configured yet\"",
-    "test": "../../node_modules/.pnpm/node_modules/.bin/ts-node src/common/guards/roles.guard.test.ts && ../../node_modules/.pnpm/node_modules/.bin/ts-node src/modules/enrollments/enrollments.repository.test.ts && ../../node_modules/.pnpm/node_modules/.bin/ts-node src/modules/webhooks/webhooks.service.test.ts",
+    "test": "ts-node src/common/guards/roles.guard.test.ts && ts-node src/modules/enrollments/enrollments.repository.test.ts && ts-node src/modules/webhooks/webhooks.service.test.ts && ts-node src/modules/billing/billing.service.test.ts && ts-node src/modules/tracking/tracking.service.test.ts && ts-node src/modules/campaigns/campaigns.service.test.ts",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {

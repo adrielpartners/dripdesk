@@ -74,7 +74,7 @@ function clickMetadata(metadata?: ClickMetadata) {
   };
 }
 
-function assertSafeRedirectUrl(url: string) {
+export function assertSafeRedirectUrl(url: string) {
   let parsed: URL;
 
   try {
