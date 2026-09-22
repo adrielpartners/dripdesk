@@ -44,6 +44,7 @@ services:
       - "traefik.http.routers.dripdesk-api.rule=Host(`api.dripdesk.net`)"
       - "traefik.http.routers.dripdesk-api.entrypoints=websecure"
       - "traefik.http.routers.dripdesk-api.tls.certresolver=mytlschallenge"
+      - "traefik.docker.network=edge"
       - "traefik.http.services.dripdesk-api.loadbalancer.server.port=3000"
     networks:
       - edge
