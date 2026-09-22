@@ -9,6 +9,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { UpsertProviderCredentialDto, type ProviderType } from './dto/upsert-provider-credential.dto';
 import { ProviderCredentialsService } from './provider-credentials.service';
+import { TestProviderDto } from './dto/test-provider.dto';
 
 @ApiTags('provider-credentials')
 @Controller('provider-credentials')
@@ -35,8 +36,14 @@ export class ProviderCredentialsController {
   }
 
   @Post(':providerType/test')
-  @ApiOperation({ summary: 'Validate saved provider credential shape' })
-  async test(@CurrentTenant() tenant: TenantContext, @Param('providerType') providerType: ProviderType) {
-    return ok(await this.providerCredentials.test(tenant, providerType));
+  @ApiOperation({ summary: 'Send a provider test message to a specified recipient' })
+  async test(@CurrentTenant() tenant: TenantContext, @Param('providerType') providerType: ProviderType, @Body() dto: TestProviderDto) {
+    return ok(await this.providerCredentials.test(tenant, providerType, dto.recipient));
+  }
+
+  @Get(':providerType/test/:jobId')
+  @ApiOperation({ summary: 'Get a provider test result' })
+  async testStatus(@CurrentTenant() tenant: TenantContext, @Param('providerType') providerType: ProviderType, @Param('jobId') jobId: string) {
+    return ok(await this.providerCredentials.testStatus(tenant, providerType, jobId));
   }
 }

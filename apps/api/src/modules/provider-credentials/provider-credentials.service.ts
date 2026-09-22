@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { isValidEmail, isValidPhone } from '@dripdesk/shared';
 import {
   ProviderCredentialStore,
   type ProviderConfig,
@@ -7,13 +8,14 @@ import {
 } from '@dripdesk/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { PrismaService } from '../../prisma/prisma.service';
+import { QueueService } from '../queue/queue.service';
 import { UpsertProviderCredentialDto } from './dto/upsert-provider-credential.dto';
 
 @Injectable()
 export class ProviderCredentialsService {
   private readonly store: ProviderCredentialStore;
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(private readonly prisma: PrismaService, private readonly queue: QueueService) {
     this.store = new ProviderCredentialStore(prisma);
   }
 
@@ -28,20 +30,39 @@ export class ProviderCredentialsService {
     return this.store.upsert(tenant.organizationId, dto.providerType, config);
   }
 
-  async test(tenant: TenantContext, providerType: ProviderType) {
+  async test(tenant: TenantContext, providerType: ProviderType, recipient: string) {
+    assertTestRecipient(providerType, recipient);
     const config = await this.store.getConfig(tenant.organizationId, providerType);
     if (!config) throw new BadRequestException('Provider credentials are not configured');
 
     const validation = validateProviderConfig(providerType, config);
-    const tested = await this.store.markTested(
-      tenant.organizationId,
-      providerType,
-      validation.ok,
-      validation.ok ? undefined : validation.error,
-    );
-
     if (!validation.ok) throw new BadRequestException(validation.error);
-    return tested;
+    return this.queue.enqueueProviderTest(tenant.organizationId, providerType, recipient.trim());
+  }
+
+  testStatus(tenant: TenantContext, providerType: ProviderType, jobId: string) {
+    assertProviderType(providerType);
+    return this.queue.getProviderTestStatus(tenant.organizationId, providerType, jobId);
+  }
+}
+
+function assertProviderType(providerType: string): asserts providerType is ProviderType {
+  if (!['twilio', 'telegram', 'smtp'].includes(providerType)) {
+    throw new BadRequestException('Unknown provider');
+  }
+}
+
+function assertTestRecipient(providerType: ProviderType, recipient: string) {
+  assertProviderType(providerType);
+  const value = recipient.trim();
+  if (providerType === 'smtp' && !isValidEmail(value)) {
+    throw new BadRequestException('Enter a valid test email address');
+  }
+  if (providerType === 'twilio' && (!isValidPhone(value) || !/^\+[1-9]\d{6,14}$/.test(value))) {
+    throw new BadRequestException('Enter a test phone number in international format, such as +15551234567');
+  }
+  if (providerType === 'telegram' && !/^-?\d{1,20}$/.test(value)) {
+    throw new BadRequestException('Enter a numeric Telegram chat ID');
   }
 }
 

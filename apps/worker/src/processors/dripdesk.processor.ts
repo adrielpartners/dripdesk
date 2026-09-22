@@ -1,9 +1,9 @@
-import { JOB_NAMES, logger, type EvaluateProgressJobData, type SendMessageJobData, type TestJobData } from '@dripdesk/shared';
+import { JOB_NAMES, logger, type EvaluateProgressJobData, type SendMessageJobData, type TestJobData, type TestProviderJobData } from '@dripdesk/shared';
 import { ProgressService } from '@dripdesk/database';
 import type { Job, Queue } from 'bullmq';
 import { cleanupExpiredTokens } from '../cleanup/cleanup-expired-tokens';
 import { prepareMessage } from '../messages/message-preparation';
-import { sendProviderMessage } from '../providers/provider-send';
+import { sendProviderMessage, sendProviderTest } from '../providers/provider-send';
 import { scheduleDueSteps } from '../scheduling/schedule-due-steps';
 
 interface DripdeskProcessorOptions {
@@ -23,6 +23,8 @@ export async function processDripdeskJob(job: Job, queue: Queue, options: Dripde
       return scheduleDueSteps(job, queue);
     case JOB_NAMES.SEND_MESSAGE:
       return processSendMessage(job as Job<SendMessageJobData>, options.publicApiUrl, options.publicWebUrl);
+    case JOB_NAMES.TEST_PROVIDER:
+      return sendProviderTest((job as Job<TestProviderJobData>).data);
     case JOB_NAMES.PROCESS_PROVIDER_EVENT:
       return processProviderEvent(job);
     case JOB_NAMES.EVALUATE_PROGRESS:

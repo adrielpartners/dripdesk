@@ -900,6 +900,8 @@ Phase 14 implements shared progress evaluation in `@dripdesk/database` through `
 
 Phase 15 sends prepared outbox records through the configured organization provider for the channel. Successful sends mark outbox records `sent`, write `sent` events, and update the enrollment step state sent timestamp. Failed provider sends mark outbox records `failed` with normalized safe errors. An outbox left `sending` after an uncertain outcome requires inspection rather than an automatic duplicate send.
 
+Admin integration tests enqueue a separate single-attempt `test-provider` job with an explicitly entered recipient. The worker uses the campaign provider transports, records provider acceptance or failure on the credential, and does not create an enrollment or outbox message. The admin polls a tenant-scoped job status endpoint; provider acceptance is not a final-delivery receipt.
+
 ## Retry Strategy
 
 Suggested defaults:

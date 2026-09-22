@@ -8,6 +8,7 @@ import {
   type TelegramConfig,
   type TwilioConfig,
 } from '@dripdesk/database';
+import type { TestProviderJobData } from '@dripdesk/shared';
 
 interface SendProviderMessageInput {
   outboxId: string;
@@ -140,6 +141,31 @@ export async function sendProviderMessage(input: SendProviderMessageInput) {
   return { sent: true, outboxId: outbox.id, provider: result.provider };
 }
 
+export async function sendProviderTest(input: TestProviderJobData) {
+  const credentials = new ProviderCredentialStore();
+  try {
+    if (input.providerType === 'twilio') {
+      const config = await credentials.getConfig<TwilioConfig>(input.organizationId, 'twilio');
+      if (!config) throw new Error('Twilio credentials not configured');
+      await sendSms(config, input.recipient, 'DripDesk test message. Your SMS integration is working.');
+    } else if (input.providerType === 'telegram') {
+      const config = await credentials.getConfig<TelegramConfig>(input.organizationId, 'telegram');
+      if (!config) throw new Error('Telegram credentials not configured');
+      await sendTelegram(config, input.recipient, 'DripDesk test message. Your Telegram integration is working.');
+    } else {
+      const config = await credentials.getConfig<SmtpConfig>(input.organizationId, 'smtp');
+      if (!config) throw new Error('SMTP credentials not configured');
+      await sendEmail(config, input.recipient, 'DripDesk email integration test', 'Your DripDesk email integration is working.');
+    }
+    await credentials.markTested(input.organizationId, input.providerType, true);
+    return { sent: true };
+  } catch (error) {
+    const safeError = normalizeProviderError(error);
+    await credentials.markTested(input.organizationId, input.providerType, false, safeError);
+    throw new Error(safeError);
+  }
+}
+
 async function sendByChannel(outbox: OutboxForSend) {
   const credentials = new ProviderCredentialStore();
 
@@ -209,6 +235,11 @@ async function sendEmail(config: SmtpConfig, recipient: string, subject: string 
   try {
     await smtp.expect([220]);
     await smtp.command(`EHLO dripdesk.local`, [250]);
+    if (!config.secure && (config.port === 587 || config.username || config.password)) {
+      await smtp.command('STARTTLS', [220]);
+      await smtp.startTls();
+      await smtp.command('EHLO dripdesk.local', [250]);
+    }
     if (config.username || config.password) {
       await smtp.command('AUTH LOGIN', [334]);
       await smtp.command(Buffer.from(config.username ?? '').toString('base64'), [334]);
@@ -238,11 +269,10 @@ async function sendEmail(config: SmtpConfig, recipient: string, subject: string 
 }
 
 async function connectSmtp(config: SmtpConfig) {
-  const socket = config.secure
+  let socket = config.secure
     ? tls.connect({ host: config.host, port: config.port, servername: config.host })
     : net.connect({ host: config.host, port: config.port });
 
-  socket.setEncoding('utf8');
   let buffer = '';
   const responses: string[] = [];
   let pending: { resolve: () => void; reject: (error: Error) => void; expected: number[]; timeout: NodeJS.Timeout } | null = null;
@@ -253,7 +283,7 @@ async function connectSmtp(config: SmtpConfig) {
     throw new Error(`SMTP provider rejected request with ${code}`);
   }
 
-  socket.on('data', (chunk) => {
+  const onData = (chunk: string) => {
     buffer += chunk;
     let end = buffer.indexOf('\n');
     while (end !== -1) {
@@ -277,7 +307,7 @@ async function connectSmtp(config: SmtpConfig) {
       }
       end = buffer.indexOf('\n');
     }
-  });
+  };
 
   function rejectPending(error: Error) {
     if (!pending) return;
@@ -287,10 +317,34 @@ async function connectSmtp(config: SmtpConfig) {
     waiter.reject(error);
   }
 
-  socket.on('error', rejectPending);
-  socket.on('close', () => rejectPending(new Error('SMTP connection closed')));
+  const onClose = () => rejectPending(new Error('SMTP connection closed'));
+  function attachSocket() {
+    socket.setEncoding('utf8');
+    socket.on('data', onData);
+    socket.on('error', rejectPending);
+    socket.on('close', onClose);
+  }
+  attachSocket();
 
   return {
+    async startTls() {
+      socket.removeListener('data', onData);
+      socket.removeListener('error', rejectPending);
+      socket.removeListener('close', onClose);
+      socket = tls.connect({ socket, servername: config.host });
+      attachSocket();
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('SMTP TLS handshake timed out')), 10000);
+        socket.once('secureConnect', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        socket.once('error', (error) => {
+          clearTimeout(timeout);
+          reject(error);
+        });
+      });
+    },
     async command(command: string, expected: number[]) {
       socket.write(`${command}\r\n`);
       return this.expect(expected);

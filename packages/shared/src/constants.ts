@@ -16,6 +16,7 @@ export const JOB_NAMES = {
   TEST_JOB: 'test-job',
   SCHEDULE_DUE_STEPS: 'schedule-due-steps',
   SEND_MESSAGE: 'send-message',
+  TEST_PROVIDER: 'test-provider',
   PROCESS_PROVIDER_EVENT: 'process-provider-event',
   EVALUATE_PROGRESS: 'evaluate-progress',
   CLEANUP_EXPIRED_TOKENS: 'cleanup-expired-tokens',

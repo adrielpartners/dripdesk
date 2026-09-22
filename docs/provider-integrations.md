@@ -22,7 +22,10 @@ The admin integration screen supports:
 - Telegram bot token and optional webhook secret
 - SMTP host, port, username, password, from email, from name, and presets for Brevo, SendGrid, Mailgun, and generic SMTP
 
-Provider test actions validate saved credential shape and update credential status. Live provider sandbox tests still require real provider credentials and network access.
+Each card shows its own success, warning, or failure notice above the card. Admins can enter a test phone number (international `+` format), numeric Telegram chat ID, or email address and send a test message to that recipient. The saved credentials must be configured first. The API validates the recipient and credential shape, then queues a single-attempt `test-provider` job. The worker uses the same Twilio, Telegram, or SMTP transport as campaign delivery and marks the credential `verified` only after provider acceptance; rejected sends mark it `failed` with a safe error. The UI polls the job result and distinguishes queued, accepted, and failed outcomes. Acceptance does not guarantee final delivery to the inbox or device. Test messages do not create campaign outbox records or advance enrollments.
+
+Tests require real provider credentials and network access. Telegram recipients must have started a chat with the bot before the bot can send to their chat ID.
+SMTP uses implicit TLS when the secure setting/port 465 is selected, and upgrades with STARTTLS for port 587 or any authenticated non-implicit-TLS connection. It does not send SMTP authentication over an unencrypted connection.
 
 ## Sending
 

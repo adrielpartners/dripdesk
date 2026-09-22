@@ -61,6 +61,12 @@ export interface TestJobData {
   requestedAt: string;
 }
 
+export interface TestProviderJobData {
+  organizationId: string;
+  providerType: 'twilio' | 'telegram' | 'smtp';
+  recipient: string;
+}
+
 export interface ScheduleDueStepsJobData {
   scheduledAt: string;
 }

@@ -1,6 +1,7 @@
-import { Inject, Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { JOB_NAMES, QUEUE_DEFAULTS, QUEUE_NAMES, type TestJobData } from '@dripdesk/shared';
+import { JOB_NAMES, QUEUE_DEFAULTS, QUEUE_NAMES, type TestJobData, type TestProviderJobData } from '@dripdesk/shared';
+import { normalizeProviderError } from '@dripdesk/database';
 import { Queue } from 'bullmq';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -37,6 +38,27 @@ export class QueueService implements OnModuleDestroy {
       jobId: job.id,
       jobName: job.name,
     };
+  }
+
+  async enqueueProviderTest(organizationId: string, providerType: TestProviderJobData['providerType'], recipient: string) {
+    const job = await this.queue.add(
+      JOB_NAMES.TEST_PROVIDER,
+      { organizationId, providerType, recipient } satisfies TestProviderJobData,
+      { attempts: 1, removeOnComplete: { age: 3600 }, removeOnFail: { age: 3600 } },
+    );
+    return { jobId: job.id, status: 'pending' as const };
+  }
+
+  async getProviderTestStatus(organizationId: string, providerType: TestProviderJobData['providerType'], jobId: string) {
+    const job = await this.queue.getJob(jobId);
+    if (!job || job.name !== JOB_NAMES.TEST_PROVIDER || job.data.organizationId !== organizationId || job.data.providerType !== providerType) {
+      throw new NotFoundException('Provider test not found or expired');
+    }
+
+    const state = await job.getState();
+    if (state === 'completed') return { status: 'success' as const };
+    if (state === 'failed') return { status: 'failure' as const, message: normalizeProviderError(job.failedReason) };
+    return { status: 'pending' as const };
   }
 
   async onModuleDestroy() {

@@ -6,18 +6,26 @@
       <p class="page-header__description">Configure organization-owned SMS, Telegram, and email providers.</p>
     </header>
 
-    <div v-if="error" class="notice notice--error">{{ error }}</div>
-    <div v-if="savedMessage" class="notice">{{ savedMessage }}</div>
+    <div v-if="pageError" class="notice notice--error" role="alert">{{ pageError }}</div>
 
     <section class="integration-grid">
-      <AppCard v-for="provider in providers" :key="provider.type">
-        <form class="provider-form" @submit.prevent="save(provider.type)">
+      <div v-for="provider in providers" :key="provider.type" class="integration-item">
+        <div
+          v-if="notices[provider.type]"
+          class="notice"
+          :class="`notice--${notices[provider.type]?.tone}`"
+          :role="notices[provider.type]?.tone === 'error' ? 'alert' : 'status'"
+        >
+          {{ notices[provider.type]?.message }}
+        </div>
+        <AppCard>
+          <form class="provider-form" @submit.prevent="save(provider.type)">
           <div class="provider-form__header">
             <div>
               <h2>{{ provider.label }}</h2>
               <p>{{ provider.description }}</p>
             </div>
-            <AppBadge :tone="credentialStatus(provider.type).status === 'verified' ? 'success' : 'neutral'">
+            <AppBadge :tone="credentialTone(provider.type)">
               {{ credentialStatus(provider.type).label }}
             </AppBadge>
           </div>
@@ -43,12 +51,23 @@
             <AppInput v-model="smtp.fromName" label="From name" autocomplete="off" />
           </template>
 
-          <div class="provider-form__actions">
-            <AppButton type="submit" :disabled="pending === provider.type">Save</AppButton>
-            <AppButton variant="ghost" :disabled="pending === provider.type" @click="test(provider.type)">Test</AppButton>
+          <div class="provider-form__test">
+            <AppInput
+              v-model="testRecipients[provider.type]"
+              :label="provider.testLabel"
+              :placeholder="provider.testPlaceholder"
+              :hint="provider.testHint"
+              autocomplete="off"
+            />
           </div>
-        </form>
-      </AppCard>
+
+          <div class="provider-form__actions">
+            <AppButton type="submit" :disabled="pending === provider.type || testing[provider.type]">Save</AppButton>
+            <AppButton variant="ghost" :disabled="pending === provider.type || testing[provider.type]" @click="test(provider.type)">Send test</AppButton>
+          </div>
+          </form>
+        </AppCard>
+      </div>
     </section>
   </div>
 </template>
@@ -71,9 +90,30 @@ definePageMeta({
 });
 
 const providers = [
-  { type: 'twilio' as const, label: 'Twilio SMS', description: 'Send SMS steps and receive SMS replies.' },
-  { type: 'telegram' as const, label: 'Telegram Bot', description: 'Send Telegram steps and receive bot replies.' },
-  { type: 'smtp' as const, label: 'SMTP Email', description: 'Send email steps through your SMTP provider.' },
+  {
+    type: 'twilio' as const,
+    label: 'Twilio SMS',
+    description: 'Send SMS steps and receive SMS replies.',
+    testLabel: 'Test phone number',
+    testPlaceholder: '+15551234567',
+    testHint: 'Enter the number that should receive the test SMS using saved settings.',
+  },
+  {
+    type: 'telegram' as const,
+    label: 'Telegram Bot',
+    description: 'Send Telegram steps and receive bot replies.',
+    testLabel: 'Test chat ID',
+    testPlaceholder: '123456789',
+    testHint: 'Enter the numeric chat ID that should receive the test message using saved settings.',
+  },
+  {
+    type: 'smtp' as const,
+    label: 'SMTP Email',
+    description: 'Send email steps through your SMTP provider.',
+    testLabel: 'Test email address',
+    testPlaceholder: 'you@example.com',
+    testHint: 'Enter the address that should receive the test email using saved settings.',
+  },
 ];
 
 const smtpPresets = [
@@ -85,8 +125,12 @@ const smtpPresets = [
 
 const credentials = ref<MaskedCredential[]>([]);
 const pending = ref<ProviderType | ''>('');
-const error = ref('');
-const savedMessage = ref('');
+const pageError = ref('');
+type Notice = { tone: 'success' | 'error' | 'warning'; message: string };
+const notices = reactive<Record<ProviderType, Notice | null>>({ twilio: null, telegram: null, smtp: null });
+const testRecipients = reactive<Record<ProviderType, string>>({ twilio: '', telegram: '', smtp: '' });
+const testing = reactive<Record<ProviderType, boolean>>({ twilio: false, telegram: false, smtp: false });
+let pageActive = true;
 
 const twilio = reactive({ accountSid: '', authToken: '', fromNumber: '' });
 const telegram = reactive({ botToken: '', webhookSecret: '' });
@@ -101,15 +145,26 @@ const smtp = reactive({
 });
 
 onMounted(loadCredentials);
+onUnmounted(() => { pageActive = false; });
 
 async function loadCredentials() {
-  credentials.value = await apiRequest<MaskedCredential[]>('/provider-credentials');
+  try {
+    credentials.value = await apiRequest<MaskedCredential[]>('/provider-credentials');
+    pageError.value = '';
+    for (const credential of credentials.value) {
+      if (credential.status === 'failed' && credential.lastError && !notices[credential.providerType]) {
+        notices[credential.providerType] = { tone: 'error', message: `${providerLabel(credential.providerType)}: ${credential.lastError}` };
+      }
+    }
+  } catch (caught) {
+    pageError.value = caught instanceof Error ? caught.message : 'Could not load integration settings.';
+  }
 }
 
 async function save(providerType: ProviderType) {
+  if (testing[providerType]) return;
   pending.value = providerType;
-  error.value = '';
-  savedMessage.value = '';
+  notices[providerType] = null;
 
   try {
     await apiRequest<MaskedCredential>(`/provider-credentials/${providerType}`, {
@@ -117,27 +172,54 @@ async function save(providerType: ProviderType) {
       body: payload(providerType),
     });
     await loadCredentials();
-    savedMessage.value = `${providerLabel(providerType)} settings saved.`;
+    notices[providerType] = { tone: 'success', message: `${providerLabel(providerType)} settings saved. Send a test message to verify delivery.` };
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Provider settings could not be saved.';
+    notices[providerType] = { tone: 'error', message: caught instanceof Error ? caught.message : 'Provider settings could not be saved.' };
   } finally {
     pending.value = '';
   }
 }
 
 async function test(providerType: ProviderType) {
+  if (testing[providerType]) return;
   pending.value = providerType;
-  error.value = '';
-  savedMessage.value = '';
+  notices[providerType] = null;
 
   try {
-    await apiRequest<MaskedCredential>(`/provider-credentials/${providerType}/test`, { method: 'POST' });
-    await loadCredentials();
-    savedMessage.value = `${providerLabel(providerType)} settings validated.`;
+    const { jobId } = await apiRequest<{ jobId: string; status: 'pending' }>(`/provider-credentials/${providerType}/test`, {
+      method: 'POST',
+      body: { recipient: testRecipients[providerType].trim() },
+    });
+    testing[providerType] = true;
+    notices[providerType] = { tone: 'warning', message: `${providerLabel(providerType)} test is sending. Waiting for the provider response…` };
+    void pollTest(providerType, jobId);
   } catch (caught) {
-    error.value = caught instanceof Error ? caught.message : 'Provider settings could not be tested.';
+    notices[providerType] = { tone: 'error', message: caught instanceof Error ? caught.message : 'Provider test could not be started.' };
   } finally {
     pending.value = '';
+  }
+}
+
+async function pollTest(providerType: ProviderType, jobId: string) {
+  try {
+    for (let attempt = 0; attempt < 30 && pageActive; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (!pageActive) return;
+      const result = await apiRequest<{ status: 'pending' | 'success' | 'failure'; message?: string }>(
+        `/provider-credentials/${providerType}/test/${encodeURIComponent(jobId)}`,
+      );
+      if (result.status === 'pending') continue;
+      notices[providerType] = result.status === 'success'
+        ? { tone: 'success', message: `${providerLabel(providerType)} accepted the test message. Check the recipient inbox or device.` }
+        : { tone: 'error', message: result.message ?? `${providerLabel(providerType)} could not send the test message.` };
+      await loadCredentials();
+      return;
+    }
+    if (pageActive) notices[providerType] = { tone: 'warning', message: 'The test is still processing. Refresh this page later to check its status.' };
+  } catch (caught) {
+    if (pageActive) notices[providerType] = { tone: 'error', message: caught instanceof Error ? caught.message : 'Could not check the test result.' };
+  } finally {
+    testing[providerType] = false;
   }
 }
 
@@ -155,6 +237,13 @@ function credentialStatus(providerType: ProviderType) {
   return { status: credential.status, label: 'Saved' };
 }
 
+function credentialTone(providerType: ProviderType): 'success' | 'danger' | 'neutral' {
+  const status = credentialStatus(providerType).status;
+  if (status === 'verified') return 'success';
+  if (status === 'failed') return 'danger';
+  return 'neutral';
+}
+
 function providerLabel(providerType: ProviderType) {
   return providers.find((provider) => provider.type === providerType)?.label ?? 'Provider';
 }
@@ -164,6 +253,11 @@ function providerLabel(providerType: ProviderType) {
 .integration-grid {
   display: grid;
   gap: var(--dd-space-4);
+}
+
+.integration-item {
+  display: grid;
+  gap: var(--dd-space-3);
 }
 
 .provider-form {
@@ -193,6 +287,11 @@ function providerLabel(providerType: ProviderType) {
   justify-content: flex-start;
 }
 
+.provider-form__test {
+  border-top: var(--dd-border-width) solid var(--dd-color-border);
+  padding-top: var(--dd-space-4);
+}
+
 .notice {
   border: var(--dd-border-width) solid var(--dd-color-border);
   border-radius: var(--dd-radius-md);
@@ -202,6 +301,19 @@ function providerLabel(providerType: ProviderType) {
 
 .notice--error {
   border-color: var(--dd-color-danger);
+  background: var(--dd-color-danger-soft);
   color: var(--dd-color-danger);
+}
+
+.notice--success {
+  border-color: var(--dd-color-green-500);
+  background: var(--dd-color-primary-soft);
+  color: var(--dd-color-green-700);
+}
+
+.notice--warning {
+  border-color: var(--dd-color-warning);
+  background: var(--dd-color-warning-soft);
+  color: var(--dd-color-warning);
 }
 </style>
