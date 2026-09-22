@@ -19,6 +19,7 @@ import { UnsubscribeModule } from './modules/unsubscribe/unsubscribe.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { PortalModule } from './modules/portal/portal.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { EmailModule } from './modules/email/email.module';
 import { HealthModule } from './modules/health/health.module';
 import { loadDripdeskConfig, validateEnvironment } from './config/dripdesk-config';
 
@@ -53,6 +54,7 @@ import { loadDripdeskConfig, validateEnvironment } from './config/dripdesk-confi
     DashboardModule,
     PortalModule,
     BillingModule,
+    EmailModule,
     HealthModule,
   ],
   providers: [

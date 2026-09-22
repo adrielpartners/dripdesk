@@ -17,10 +17,10 @@ corepack enable
 pnpm install
 ```
 
-Start local infrastructure:
+Start local infrastructure for host-run development:
 
 ```bash
-pnpm docker:up
+docker compose -f docker/docker-compose.yml up -d postgres redis mailpit
 ```
 
 Run database migrations once Postgres is healthy:
@@ -40,16 +40,20 @@ Default local URLs:
 - Web: `http://localhost:3001`
 - API: `http://localhost:3000/api`
 - API health: `http://localhost:3000/api/health`
+- Local email inbox: `http://localhost:8025`
 
 ## Docker Local Stack
 
-The local Compose file can build and run web, API, worker, Postgres, and Redis:
+The local Compose file can build and run web, API, worker, Postgres, Redis, and a Mailpit test inbox. On a fresh database, start the infrastructure and apply migrations before starting the app containers:
 
 ```bash
-docker compose -f docker/docker-compose.yml up --build
+docker compose -f docker/docker-compose.yml up -d postgres redis mailpit
+DRIPDESK_DATABASE_URL="postgresql://dripdesk:dripdesk@localhost:5432/dripdesk?schema=public" corepack pnpm --filter @dripdesk/database migrate:deploy
+docker compose -f docker/docker-compose.yml up -d --build api worker web
+corepack pnpm smoke:campaign
 ```
 
-Postgres and Redis are exposed locally for development on ports `5432` and `6379`.
+The smoke test creates a new organization, a two-step email campaign, and one recipient, then checks that both messages reach Mailpit and the enrollment completes. It does not send external email. Postgres and Redis are exposed locally on ports `5432` and `6379`; set `DRIPDESK_POSTGRES_PORT` if port 5432 is occupied. The local Compose defaults contain development-only secrets and must not be exposed publicly.
 
 ## Production-Style Docker
 
@@ -87,4 +91,4 @@ pnpm --filter @dripdesk/database test
 pnpm --filter @dripdesk/worker test
 ```
 
-Root `pnpm test` runs the configured package test scripts. Live smoke tests still require Docker/Postgres/Redis and provider credentials.
+Root `pnpm test` runs the configured package test scripts. The campaign smoke test requires the local Docker stack and uses Mailpit as its SMTP provider.

@@ -1,6 +1,6 @@
 # Queue and Worker
 
-Phase 11 adds Redis-backed queue infrastructure before message delivery exists.
+DripDesk uses Redis and BullMQ for scheduled campaign delivery.
 
 ## Tooling
 
@@ -16,7 +16,7 @@ Shared job names and retry defaults live in `@dripdesk/shared`.
 
 ## Jobs
 
-Phase 11 job names:
+Job names:
 
 - `test-job`
 - `schedule-due-steps`
@@ -25,7 +25,9 @@ Phase 11 job names:
 - `evaluate-progress`
 - `cleanup-expired-tokens`
 
-`test-job` verifies the queue path. `schedule-due-steps` performs due-step detection starting in Phase 12. `send-message` prepares durable outbox records and tracked links starting in Phase 13, and sends through configured providers starting in Phase 15. `evaluate-progress` runs shared completion evaluation starting in Phase 14. Other future job names are recognized by the worker and logged as deferred until their implementation phases.
+`test-job` verifies the queue path. `schedule-due-steps` detects due steps and enqueues sends before marking each step queued, so a queue write failure leaves the step eligible for another scheduling cycle. `send-message` prepares a durable outbox record, sends through the configured Twilio, Telegram, or SMTP provider, and evaluates enrollment progress after confirmed provider acceptance. A time-based step does not advance merely because it was queued. `evaluate-progress` runs the same progress evaluation separately. `process-provider-event` currently acknowledges queued events; the API handles provider webhooks inline.
+
+Send jobs have deterministic IDs and the outbox has a unique enrollment/step/channel key. A send already marked `sent` is not repeated. If provider acceptance succeeds but database confirmation fails, the outbox remains `sending` for operator inspection rather than automatically retrying a potentially duplicate delivery. Other provider errors are marked `failed` and retried according to the shared queue defaults.
 
 `schedule-due-steps` is registered as a repeatable BullMQ job every 60 seconds.
 
@@ -74,14 +76,14 @@ The worker:
 
 ## Local Services
 
-Redis is defined in `docker/docker-compose.yml`.
+Redis and Mailpit are defined in `docker/docker-compose.yml`.
 
 ```bash
-pnpm docker:up
+docker compose -f docker/docker-compose.yml up -d postgres redis mailpit
 ```
 
-Docker is unavailable in the current environment, so live Redis job processing must be smoke-tested when Docker or another Redis instance is available.
+After starting the API and worker containers and applying migrations, run `corepack pnpm smoke:campaign`. It verifies two scheduled SMTP messages and completion against Mailpit. It does not verify an external provider.
 
 ## Deferred
 
-Cleanup behavior and production worker container packaging remain later phases.
+Production delivery still needs provider-sandbox tests, operational alerting for uncertain `sending` records, and retry policy review for ambiguous transport failures.

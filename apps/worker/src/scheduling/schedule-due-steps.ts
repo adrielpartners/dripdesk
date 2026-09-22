@@ -73,7 +73,34 @@ export async function scheduleDueSteps(job: Job, queue: Queue, client: PrismaCli
       if (!due) continue;
       dueCount += 1;
 
-      const claimed = await client.enrollmentStepState.updateMany({
+      const channels = deliveryChannels(candidate);
+      if (channels.length === 0) {
+        logger.warn('Due step has no enabled delivery channels', {
+          enrollmentId: candidate.enrollmentId,
+          campaignStepId: candidate.campaignStepId,
+        });
+        continue;
+      }
+
+      // Queue first: a Redis failure must leave the step pending for the next cycle.
+      await queue.addBulk(channels.map((channel) => ({
+        name: JOB_NAMES.SEND_MESSAGE,
+        data: {
+          enrollmentId: candidate.enrollmentId,
+          campaignStepId: candidate.campaignStepId,
+          channel,
+        } satisfies SendMessageJobData,
+        opts: {
+          jobId: sendMessageJobId(candidate.enrollmentId, candidate.campaignStepId, channel),
+          attempts: QUEUE_DEFAULTS.ATTEMPTS,
+          backoff: {
+            type: 'exponential',
+            delay: QUEUE_DEFAULTS.BACKOFF_DELAY_MS,
+          },
+        },
+      })));
+
+      await client.enrollmentStepState.updateMany({
         where: {
           id: candidate.id,
           status: 'pending',
@@ -82,26 +109,7 @@ export async function scheduleDueSteps(job: Job, queue: Queue, client: PrismaCli
           status: 'queued',
         },
       });
-
-      if (claimed.count !== 1) continue;
-
-      const channels = deliveryChannels(candidate);
-      for (const channel of channels) {
-        const payload: SendMessageJobData = {
-          enrollmentId: candidate.enrollmentId,
-          campaignStepId: candidate.campaignStepId,
-          channel,
-        };
-        await queue.add(JOB_NAMES.SEND_MESSAGE, payload, {
-          jobId: sendMessageJobId(candidate.enrollmentId, candidate.campaignStepId, channel),
-          attempts: QUEUE_DEFAULTS.ATTEMPTS,
-          backoff: {
-            type: 'exponential',
-            delay: QUEUE_DEFAULTS.BACKOFF_DELAY_MS,
-          },
-        });
-        enqueuedCount += 1;
-      }
+      enqueuedCount += channels.length;
     }
   }
 
@@ -163,7 +171,7 @@ function deliveryChannels(candidate: DueCandidate) {
 }
 
 function sendMessageJobId(enrollmentId: string, campaignStepId: string, channel: Channel) {
-  return `send-message:${enrollmentId}:${campaignStepId}:${channel}`;
+  return `send-message-${enrollmentId}-${campaignStepId}-${channel}`;
 }
 
 function asScheduleConfig(value: unknown): ScheduleConfig | null {

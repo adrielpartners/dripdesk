@@ -111,7 +111,7 @@ export class ProgressService {
   }) {
     if (input.progressRule === 'time_based') {
       return {
-        complete: ['queued', 'sent', 'delivered', 'clicked', 'replied'].includes(input.status),
+        complete: ['sent', 'delivered', 'clicked', 'replied'].includes(input.status),
         reason: 'time_based_ready',
       };
     }

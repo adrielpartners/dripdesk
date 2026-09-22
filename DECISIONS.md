@@ -3,7 +3,7 @@
 Version: 1.1  
 Project: DripDesk  
 Repository: `dripdesk`  
-Last Updated: 2026-06-05
+Last Updated: 2026-09-22
 
 ---
 
@@ -784,3 +784,28 @@ Inlining `${DRIPDESK_POSTGRES_PASSWORD}` in compose causes Docker Compose variab
 ## Reversibility
 
 Easy. Can switch back to inline variables if a secret management solution is adopted later.
+
+---
+
+# Decision 027: Do not automatically repeat an uncertain provider send
+
+## Decision
+
+Claim an outbox record before sending. If a provider may have accepted the message but DripDesk cannot confirm the final database update, leave the record `sending` for inspection instead of automatically sending it again. Queue due-step jobs before marking a step `queued`, so a queue write failure remains retryable.
+
+## Rationale
+
+A provider call and a database transaction cannot be atomic. Repeating an uncertain call can deliver duplicate lessons; marking a step queued before Redis accepts the job can strand it. The outbox and deterministic job IDs provide the durable recovery points.
+
+## Tradeoffs
+
+- An uncertain `sending` record requires operator review and an eventual reconciliation path.
+- Some transport failures remain ambiguous and need a more precise retry policy before production-scale delivery.
+
+## Date Adopted
+
+2026-09-22
+
+## Reversibility
+
+Moderate. A provider-supported idempotency key or reconciliation API could allow safer automatic retries later.

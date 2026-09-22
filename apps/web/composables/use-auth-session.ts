@@ -61,6 +61,37 @@ export function useAuthSession() {
     }
   }
 
+  async function register(params: {
+    email: string;
+    password: string;
+    organizationName: string;
+    firstName?: string;
+    lastName?: string;
+  }) {
+    pending.value = true;
+    error.value = null;
+
+    try {
+      const response = await $fetch<ApiEnvelope<AuthSession>>('/auth/register', {
+        baseURL: config.public.apiUrl,
+        method: 'POST',
+        body: params,
+      });
+
+      if (!response.ok || !response.data) {
+        throw new Error(response.error?.message ?? 'Registration failed');
+      }
+
+      setSession(response.data);
+      return response.data;
+    } catch (registerError) {
+      error.value = registerError instanceof Error ? registerError.message : 'Registration failed';
+      throw registerError;
+    } finally {
+      pending.value = false;
+    }
+  }
+
   async function login(email: string, password: string) {
     pending.value = true;
     error.value = null;
@@ -108,6 +139,7 @@ export function useAuthSession() {
     isAdminUser,
     isRecipient,
     loadStoredSession,
+    register,
     login,
     logout,
   };

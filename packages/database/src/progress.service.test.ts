@@ -38,7 +38,7 @@ void runServiceTests().then(() => {
 async function runServiceTests() {
   const timeBased = enrollmentFixture({
     progressRule: 'time_based',
-    currentStatus: 'queued',
+    currentStatus: 'sent',
     steps: [{ id: 'step-1', stepOrder: 1, replyRequiredPhrases: [] }],
   });
   const timeResult = await new ProgressService(fakeClient(timeBased) as never).evaluateEnrollment('enrollment-1');
@@ -46,6 +46,14 @@ async function runServiceTests() {
   assert.equal(timeResult.completedCampaign, true);
   assert.equal(timeBased.status, 'completed');
   assert.equal(timeBased.stepStates[0]?.status, 'completed');
+
+  const queued = enrollmentFixture({
+    progressRule: 'time_based',
+    currentStatus: 'queued',
+    steps: [{ id: 'step-1', stepOrder: 1, replyRequiredPhrases: [] }],
+  });
+  const queuedResult = await new ProgressService(fakeClient(queued) as never).evaluateEnrollment('enrollment-1');
+  assert.equal(queuedResult.completedStep, false);
 
   const clickRequired = enrollmentFixture({
     progressRule: 'link_click_required',

@@ -19,6 +19,10 @@
       <AppButton type="submit" size="lg" :disabled="pending">
         {{ pending ? 'Signing in' : 'Sign in' }}
       </AppButton>
+      <p style="color:var(--dd-color-text-muted);font-size:var(--dd-font-size-sm);text-align:center;margin:0">
+        Don't have an account?
+        <NuxtLink to="/register" style="color:var(--dd-color-primary)">Create one</NuxtLink>
+      </p>
     </form>
   </AppCard>
 </template>

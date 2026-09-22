@@ -6,11 +6,13 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PasswordService } from './password.service';
+import { EmailModule } from '../email/email.module';
 
 type JwtExpiresIn = NonNullable<NonNullable<JwtModuleOptions['signOptions']>['expiresIn']>;
 
 @Module({
   imports: [
+    EmailModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

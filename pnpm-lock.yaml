@@ -39,6 +39,9 @@ importers:
       '@dripdesk/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@getbrevo/brevo':
+        specifier: ^5.0.4
+        version: 5.0.4
       '@nestjs/common':
         specifier: ^11.1.24
         version: 11.1.24(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -730,6 +733,10 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@getbrevo/brevo@5.0.4':
+    resolution: {integrity: sha512-wN4mHE6O0Pb/d/Dh3E4MAm2zCHbLLUcFF8/wgwTeMPy9KzHBYLu7S/nsJbzd0AWL09MHn8vwue8ULL9YOzluOQ==}
+    engines: {node: '>=18.0.0'}
 
   '@inquirer/ansi@1.0.2':
     resolution: {integrity: sha512-S8qNSZiYzFd0wAcyG5AXCvUHC5Sr7xpZ9wZ2py9XR88jUz8wooStVx5M6dRzczbBWjic9NP7+rY0Xi7qqK/aMQ==}
@@ -5507,6 +5514,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.0':
     optional: true
+
+  '@getbrevo/brevo@5.0.4': {}
 
   '@inquirer/ansi@1.0.2': {}
 

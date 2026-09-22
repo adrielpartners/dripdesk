@@ -24,6 +24,12 @@ export interface DripdeskConfig {
   stripeProPriceId: string;
   defaultFromEmail: string;
   defaultFromName: string;
+  emailProvider: string;
+  brevoApiKey: string;
+  postmarkApiKey: string;
+  mailgunApiKey: string;
+  mailgunDomain: string;
+  sendgridApiKey: string;
   smtpHost: string;
   smtpPort: number;
   smtpUser: string;
@@ -47,6 +53,12 @@ const LEGACY_ENV_KEYS: Record<string, string[]> = {
   DRIPDESK_STRIPE_PRO_PRICE_ID: ['STRIPE_PRO_PRICE_ID'],
   DRIPDESK_DEFAULT_FROM_EMAIL: ['DEFAULT_FROM_EMAIL'],
   DRIPDESK_DEFAULT_FROM_NAME: ['DEFAULT_FROM_NAME'],
+  DRIPDESK_EMAIL_PROVIDER: ['EMAIL_PROVIDER'],
+  DRIPDESK_BREVO_API_KEY: ['BREVO_API_KEY'],
+  DRIPDESK_POSTMARK_API_KEY: ['POSTMARK_API_KEY'],
+  DRIPDESK_MAILGUN_API_KEY: ['MAILGUN_API_KEY'],
+  DRIPDESK_MAILGUN_DOMAIN: ['MAILGUN_DOMAIN'],
+  DRIPDESK_SENDGRID_API_KEY: ['SENDGRID_API_KEY'],
   DRIPDESK_SMTP_HOST: ['SMTP_HOST'],
   DRIPDESK_SMTP_PORT: ['SMTP_PORT'],
   DRIPDESK_SMTP_USER: ['SMTP_USER'],
@@ -178,6 +190,12 @@ export function readDripdeskConfig(env: EnvSource = process.env): DripdeskConfig
     stripeProPriceId: readString(env, 'DRIPDESK_STRIPE_PRO_PRICE_ID', ''),
     defaultFromEmail: readString(env, 'DRIPDESK_DEFAULT_FROM_EMAIL', 'noreply@localhost'),
     defaultFromName: readString(env, 'DRIPDESK_DEFAULT_FROM_NAME', 'DripDesk'),
+    emailProvider: readString(env, 'DRIPDESK_EMAIL_PROVIDER', 'brevo'),
+    brevoApiKey: readString(env, 'DRIPDESK_BREVO_API_KEY', ''),
+    postmarkApiKey: readString(env, 'DRIPDESK_POSTMARK_API_KEY', ''),
+    mailgunApiKey: readString(env, 'DRIPDESK_MAILGUN_API_KEY', ''),
+    mailgunDomain: readString(env, 'DRIPDESK_MAILGUN_DOMAIN', ''),
+    sendgridApiKey: readString(env, 'DRIPDESK_SENDGRID_API_KEY', ''),
     smtpHost: readString(env, 'DRIPDESK_SMTP_HOST', 'localhost'),
     smtpPort: readNumber(env, 'DRIPDESK_SMTP_PORT', 1025),
     smtpUser: readString(env, 'DRIPDESK_SMTP_USER', ''),

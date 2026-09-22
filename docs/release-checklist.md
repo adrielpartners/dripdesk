@@ -26,6 +26,7 @@ Run with Postgres, Redis, API, worker, and web available:
 - activate campaign
 - enroll person and confirm active-contact limit enforcement
 - run scheduler/worker queue path through Redis
+- run `corepack pnpm smoke:campaign` against the local Mailpit stack
 - send provider sandbox message for each configured provider
 - click tracked link and confirm progress update
 - test unsubscribe link end to end
@@ -47,6 +48,6 @@ Run with Postgres, Redis, API, worker, and web available:
 
 ## Known Test Gaps
 
-- Docker build was not verified in the current environment.
-- Live database/API/worker/provider smoke tests need running once services are available.
+- Local Docker web/API/worker builds and a two-step SMTP-to-Mailpit campaign were verified on 2026-09-22. External-provider delivery remains a separate check.
+- Live Twilio, Telegram, and external SMTP provider sandbox tests remain open.
 - Stripe webhook signature validation still needs live testing with Stripe CLI or a provider sandbox.

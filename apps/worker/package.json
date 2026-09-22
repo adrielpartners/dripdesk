@@ -8,7 +8,7 @@
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "echo \"No worker lint configured yet\"",
-    "test": "ts-node src/scheduling/schedule-rules.test.ts && ts-node src/messages/message-preparation.test.ts"
+    "test": "ts-node src/scheduling/schedule-rules.test.ts && ts-node src/scheduling/schedule-due-steps.test.ts && ts-node src/messages/message-preparation.test.ts"
   },
   "dependencies": {
     "@dripdesk/config": "workspace:*",

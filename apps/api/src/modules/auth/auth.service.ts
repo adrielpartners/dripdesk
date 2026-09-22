@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Prisma, User } from '@prisma/client';
@@ -11,6 +11,7 @@ import { InviteAdminDto } from './dto/invite-admin.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { PasswordService } from './password.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { EmailService } from '../email/email.service';
 
 type UserWithMemberships = Prisma.UserGetPayload<{
   include: {
@@ -25,11 +26,14 @@ type UserWithMemberships = Prisma.UserGetPayload<{
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly passwords: PasswordService,
+    private readonly email: EmailService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -83,6 +87,11 @@ export class AuthService {
           },
         },
       });
+    });
+
+    // Fire welcome email in background — don't block registration response
+    this.email.sendWelcomeEmail(user.email, user.firstName).catch((err) => {
+      this.logger.error(`Failed to send welcome email to ${user.email}: ${err.message}`);
     });
 
     return this.createTokenResponse(user);

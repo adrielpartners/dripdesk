@@ -32,17 +32,17 @@ services:
 
   api:
     build:
-      context: ..
+      context: .
       dockerfile: docker/api.Dockerfile
     restart: unless-stopped
     env_file:
-      - ../.env
+      - .env
     environment:
       DRIPDESK_ENV: production
       DRIPDESK_API_PORT: 3000
       DRIPDESK_REDIS_URL: redis://redis:6379
     networks:
-      - edge
+      - traefik_proxy
       - internal
     depends_on:
       postgres:
@@ -53,10 +53,10 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.dripdesk-api.rule=Host(`api.dripdesk.net`)"
       - "traefik.http.routers.dripdesk-api.entrypoints=websecure"
-      - "traefik.http.routers.dripdesk-api.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.dripdesk-api.tls.certresolver=mytlschallenge"
       - "traefik.http.services.dripdesk-api.loadbalancer.server.port=3000"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,15 +64,15 @@ services:
 
   worker:
     build:
-      context: ..
+      context: .
       dockerfile: docker/worker.Dockerfile
     restart: unless-stopped
     env_file:
-      - ../.env
+      - .env
     environment:
       DRIPDESK_ENV: production
       DRIPDESK_REDIS_URL: redis://redis:6379
-      DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
+      DRIPDESK_PUBLIC_API_URL: http://api:3000/api
       DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
     networks:
       - internal
@@ -84,11 +84,14 @@ services:
 
   web:
     build:
-      context: ..
+      context: .
       dockerfile: docker/web.Dockerfile
+      args:
+        DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
+        DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
     restart: unless-stopped
     env_file:
-      - ../.env
+      - .env
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -96,21 +99,21 @@ services:
       DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
       DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
     networks:
-      - edge
+      - traefik_proxy
     depends_on:
       api:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dripdesk-web.rule=Host(`app.dripdesk.net`)"
+      - "traefik.http.routers.dripdesk-web.entrypoints=websecure"
+      - "traefik.http.routers.dripdesk-web.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.dripdesk-web.loadbalancer.server.port=3001"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3001 >/dev/null 2>&1"]
       interval: 10s
       timeout: 5s
       retries: 5
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dripdesk-web.rule=Host(`app.dripdesk.net`)"
-      - "traefik.http.routers.dripdesk-web.entrypoints=websecure"
-      - "traefik.http.routers.dripdesk-web.tls.certresolver=letsencrypt"
-      - "traefik.http.services.dripdesk-web.loadbalancer.server.port=3001"
 
 volumes:
   postgres_data:
@@ -119,5 +122,5 @@ volumes:
 networks:
   internal:
     internal: true
-  edge:
+  traefik_proxy:
     external: true

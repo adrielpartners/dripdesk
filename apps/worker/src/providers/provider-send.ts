@@ -43,6 +43,9 @@ export async function sendProviderMessage(input: SendProviderMessageInput) {
 
   if (!outbox) throw new Error('Message outbox record not found');
   if (outbox.status === 'sent') return { sent: true, outboxId: outbox.id, alreadySent: true };
+  if (outbox.status === 'sending') {
+    return { sent: false, outboxId: outbox.id, deliveryUncertain: true };
+  }
   if (
     outbox.person.status !== 'active' ||
     !outbox.personChannel.enabled ||
@@ -52,53 +55,17 @@ export async function sendProviderMessage(input: SendProviderMessageInput) {
     throw new Error('Recipient is not eligible for provider send');
   }
 
-  await prisma.messageOutbox.update({
-    where: { id: outbox.id },
+  const claim = await prisma.messageOutbox.updateMany({
+    where: { id: outbox.id, status: { in: ['prepared', 'failed'] } },
     data: { status: 'sending' },
   });
+  if (claim.count !== 1) {
+    return { sent: false, outboxId: outbox.id, deliveryUncertain: true };
+  }
 
+  let result: Awaited<ReturnType<typeof sendByChannel>>;
   try {
-    const result = await sendByChannel(outbox);
-    const sentAt = new Date();
-
-    await prisma.$transaction([
-      prisma.messageOutbox.update({
-        where: { id: outbox.id },
-        data: {
-          status: 'sent',
-          provider: result.provider,
-          providerMessageId: result.providerMessageId,
-          sentAt,
-          errorMessage: null,
-        },
-      }),
-      prisma.messageEvent.create({
-        data: {
-          organizationId: outbox.organizationId,
-          enrollmentId: outbox.enrollmentId,
-          messageOutboxId: outbox.id,
-          eventType: 'sent',
-          occurredAt: sentAt,
-          metadata: {
-            provider: result.provider,
-            providerMessageId: result.providerMessageId,
-          },
-        },
-      }),
-      prisma.enrollmentStepState.updateMany({
-        where: {
-          enrollmentId: outbox.enrollmentId,
-          campaignStepId: outbox.campaignStepId,
-          status: { in: ['queued', 'pending'] },
-        },
-        data: {
-          status: 'sent',
-          sentAt,
-        },
-      }),
-    ]);
-
-    return { sent: true, outboxId: outbox.id, provider: result.provider };
+    result = await sendByChannel(outbox);
   } catch (error) {
     const failedAt = new Date();
     const safeError = normalizeProviderError(error);
@@ -129,6 +96,48 @@ export async function sendProviderMessage(input: SendProviderMessageInput) {
 
     throw new Error(safeError);
   }
+
+  // Provider acceptance and DB persistence cannot be atomic. If persistence fails,
+  // leave the outbox as "sending" for inspection instead of risking a duplicate send.
+  const sentAt = new Date();
+  await prisma.$transaction([
+    prisma.messageOutbox.update({
+      where: { id: outbox.id },
+      data: {
+        status: 'sent',
+        provider: result.provider,
+        providerMessageId: result.providerMessageId,
+        sentAt,
+        errorMessage: null,
+      },
+    }),
+    prisma.messageEvent.create({
+      data: {
+        organizationId: outbox.organizationId,
+        enrollmentId: outbox.enrollmentId,
+        messageOutboxId: outbox.id,
+        eventType: 'sent',
+        occurredAt: sentAt,
+        metadata: {
+          provider: result.provider,
+          providerMessageId: result.providerMessageId,
+        },
+      },
+    }),
+    prisma.enrollmentStepState.updateMany({
+      where: {
+        enrollmentId: outbox.enrollmentId,
+        campaignStepId: outbox.campaignStepId,
+        status: { in: ['queued', 'pending'] },
+      },
+      data: {
+        status: 'sent',
+        sentAt,
+      },
+    }),
+  ]);
+
+  return { sent: true, outboxId: outbox.id, provider: result.provider };
 }
 
 async function sendByChannel(outbox: OutboxForSend) {
@@ -222,7 +231,6 @@ async function sendEmail(config: SmtpConfig, recipient: string, subject: string 
       ].join('\r\n'),
       [250],
     );
-    await smtp.command('QUIT', [221]);
     return { provider: 'smtp', providerMessageId: messageId };
   } finally {
     smtp.close();
@@ -236,9 +244,51 @@ async function connectSmtp(config: SmtpConfig) {
 
   socket.setEncoding('utf8');
   let buffer = '';
+  const responses: string[] = [];
+  let pending: { resolve: () => void; reject: (error: Error) => void; expected: number[]; timeout: NodeJS.Timeout } | null = null;
+
+  function acceptResponse(line: string, expected: number[]) {
+    const code = Number(line.slice(0, 3));
+    if (expected.includes(code)) return;
+    throw new Error(`SMTP provider rejected request with ${code}`);
+  }
+
   socket.on('data', (chunk) => {
     buffer += chunk;
+    let end = buffer.indexOf('\n');
+    while (end !== -1) {
+      const line = buffer.slice(0, end).replace(/\r$/, '');
+      buffer = buffer.slice(end + 1);
+      // Multiline SMTP responses end with "250 ", not "250-".
+      if (/^\d{3} /.test(line)) {
+        if (pending) {
+          const waiter = pending;
+          pending = null;
+          clearTimeout(waiter.timeout);
+          try {
+            acceptResponse(line, waiter.expected);
+            waiter.resolve();
+          } catch (error) {
+            waiter.reject(error as Error);
+          }
+        } else {
+          responses.push(line);
+        }
+      }
+      end = buffer.indexOf('\n');
+    }
   });
+
+  function rejectPending(error: Error) {
+    if (!pending) return;
+    const waiter = pending;
+    pending = null;
+    clearTimeout(waiter.timeout);
+    waiter.reject(error);
+  }
+
+  socket.on('error', rejectPending);
+  socket.on('close', () => rejectPending(new Error('SMTP connection closed')));
 
   return {
     async command(command: string, expected: number[]) {
@@ -246,49 +296,25 @@ async function connectSmtp(config: SmtpConfig) {
       return this.expect(expected);
     },
     expect(expected: number[]) {
+      const response = responses.shift();
+      if (response) {
+        try {
+          acceptResponse(response, expected);
+          return Promise.resolve();
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      }
+
       return new Promise<void>((resolve, reject) => {
         const timeout = setTimeout(() => {
-          cleanup();
-          reject(new Error('SMTP provider timed out'));
+          rejectPending(new Error('SMTP provider timed out'));
         }, 10000);
-
-        const onData = () => {
-          const line = lastCompleteLine(buffer);
-          if (!line) return;
-          const code = Number(line.slice(0, 3));
-          if (!Number.isFinite(code)) return;
-          cleanup();
-          if (expected.includes(code)) resolve();
-          else reject(new Error(`SMTP provider rejected request with ${code}`));
-        };
-
-        const onError = (error: Error) => {
-          cleanup();
-          reject(error);
-        };
-
-        function cleanup() {
-          clearTimeout(timeout);
-          socket.off('data', onData);
-          socket.off('error', onError);
-        }
-
-        socket.on('data', onData);
-        socket.on('error', onError);
-        onData();
+        pending = { resolve, reject, expected, timeout };
       });
     },
     close() {
       socket.end();
     },
   };
-}
-
-function lastCompleteLine(buffer: string) {
-  const lines = buffer.split(/\r?\n/).filter(Boolean);
-  for (let index = lines.length - 1; index >= 0; index -= 1) {
-    const line = lines[index];
-    if (/^\d{3} /.test(line)) return line;
-  }
-  return undefined;
 }

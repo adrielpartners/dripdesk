@@ -12,4 +12,4 @@ RUN pnpm turbo build --filter=@dripdesk/worker && \
     cp $(find /app/node_modules/.pnpm -name "libquery_engine-linux-musl-openssl-3.0.x.so.node" -path "*/@prisma+client*" | head -1) /app/query-engine.so && \
     chmod +x /app/query-engine.so
 ENV PRISMA_QUERY_ENGINE_LIBRARY=/app/query-engine.so
-CMD ["node", "apps/worker/dist/main.js"]
+CMD ["node", "apps/worker/dist/apps/worker/src/main.js"]

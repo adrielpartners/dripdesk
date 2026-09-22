@@ -4,7 +4,7 @@ Version: 1.0
 Project: DripDesk  
 Repository: `dripdesk`  
 System Type: Multi-Tenant SaaS Application  
-Last Updated: 2026-05-28
+Last Updated: 2026-09-22
 
 ---
 
@@ -892,13 +892,13 @@ Expected jobs:
 
 Phase 11 adds `test-job` for infrastructure verification only. `schedule-due-steps` is registered as a repeatable scheduled job.
 
-Phase 12 implements due-step detection for active enrollments and enqueues deterministic `send-message` jobs for each enabled recipient channel. It supports Daily, Weekdays, Monday/Wednesday/Friday, custom interval, custom days of week, per-step delay overrides, local send time, and recipient timezone fallback to organization default timezone. It prevents duplicate scheduling by claiming pending enrollment step states as `queued` and by assigning deterministic BullMQ job IDs per enrollment, step, and channel.
+Phase 12 implements due-step detection for active enrollments and enqueues deterministic `send-message` jobs for each enabled recipient channel. It supports Daily, Weekdays, Monday/Wednesday/Friday, custom interval, custom days of week, per-step delay overrides, local send time, and recipient timezone fallback to organization default timezone. It enqueues before marking a step `queued`, leaving the step pending if Redis rejects the queue write. Deterministic BullMQ job IDs and a unique outbox key guard against duplicate scheduling and sends.
 
 Phase 13 implements `send-message` preparation in the worker: channel variant selection, merge tag replacement, tracked link creation and rewrite, `message_outbox` persistence, and prepared message events.
 
-Phase 14 implements shared progress evaluation in `@dripdesk/database` through `ProgressService`. The API calls it after tracked-link clicks, and the worker calls it after prepared messages and for `evaluate-progress` jobs. Provider sends, provider event ingestion, and cleanup behavior remain later-phase work.
+Phase 14 implements shared progress evaluation in `@dripdesk/database` through `ProgressService`. The API calls it after tracked-link clicks, and the worker calls it after provider acceptance and for `evaluate-progress` jobs. A time-based step advances after a send, not merely after queueing. Provider webhooks are handled inline by the API; the queued provider-event path remains a deferred secondary pipeline.
 
-Phase 15 sends prepared outbox records through the configured organization provider for the channel. Successful sends mark outbox records `sent`, write `sent` events, and update the enrollment step state sent timestamp. Failed sends mark outbox records `failed` with normalized safe errors.
+Phase 15 sends prepared outbox records through the configured organization provider for the channel. Successful sends mark outbox records `sent`, write `sent` events, and update the enrollment step state sent timestamp. Failed provider sends mark outbox records `failed` with normalized safe errors. An outbox left `sending` after an uncertain outcome requires inspection rather than an automatic duplicate send.
 
 ## Retry Strategy
 
@@ -1130,6 +1130,7 @@ Docker Compose
 → worker container
 → PostgreSQL
 → Redis
+→ Mailpit test inbox
 ```
 
 ## Production
@@ -1155,7 +1156,7 @@ Internet
 - Do not expose database or Redis publicly.
 - Configure provider webhooks to the public API URL.
 
-Phase 20 adds Dockerfiles for web, API, and worker, plus local and production-style Compose files. The production-style Compose example keeps Postgres and Redis on an internal network and exposes web/API only through an edge network intended for a reverse proxy such as Traefik.
+Phase 20 adds Dockerfiles for web, API, and worker, plus local and production-style Compose files. The local stack binds published ports to loopback and uses Mailpit for repeatable SMTP campaign tests. The production-style Compose example keeps Postgres and Redis on an internal network and exposes web/API only through an edge network intended for a reverse proxy such as Traefik.
 
 ---
 

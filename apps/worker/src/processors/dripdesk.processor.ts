@@ -37,6 +37,13 @@ export async function processDripdeskJob(job: Job, queue: Queue, options: Dripde
 async function processSendMessage(job: Job<SendMessageJobData>, publicApiUrl: string, publicWebUrl: string) {
   const outbox = await prepareMessage(job.data, publicApiUrl, publicWebUrl);
   const sendResult = await sendProviderMessage({ outboxId: outbox.id });
+  if (!sendResult.sent) {
+    logger.error('Provider delivery outcome requires inspection', {
+      jobId: job.id,
+      outboxId: outbox.id,
+    });
+    return { outboxId: outbox.id, sendResult };
+  }
   const progress = await new ProgressService().evaluateEnrollment(job.data.enrollmentId);
 
   logger.info('Prepared outbound message', {

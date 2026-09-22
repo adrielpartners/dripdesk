@@ -8,6 +8,7 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "test": "turbo run test",
+    "smoke:campaign": "node scripts/smoke-campaign.mjs",
     "db:migrate": "pnpm --filter @dripdesk/database migrate:dev",
     "db:generate": "pnpm --filter @dripdesk/database generate",
     "db:seed": "pnpm --filter @dripdesk/database seed",
