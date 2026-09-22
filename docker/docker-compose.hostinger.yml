@@ -39,6 +39,12 @@ services:
       DRIPDESK_ENV: production
       DRIPDESK_API_PORT: 3000
       DRIPDESK_REDIS_URL: redis://redis:6379
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dripdesk-api.rule=Host(`api.dripdesk.net`)"
+      - "traefik.http.routers.dripdesk-api.entrypoints=websecure"
+      - "traefik.http.routers.dripdesk-api.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.dripdesk-api.loadbalancer.server.port=3000"
     networks:
       - edge
       - internal
@@ -83,6 +89,12 @@ services:
       HOST: 0.0.0.0
       DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
       DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dripdesk-web.rule=Host(`app.dripdesk.net`)"
+      - "traefik.http.routers.dripdesk-web.entrypoints=websecure"
+      - "traefik.http.routers.dripdesk-web.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.dripdesk-web.loadbalancer.server.port=3001"
     networks:
       - edge
     depends_on:
