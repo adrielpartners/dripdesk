@@ -12,7 +12,7 @@ Supported providers:
 - `telegram`
 - `smtp`
 
-Credential payloads are encrypted at rest with `DRIPDESK_ENCRYPTION_KEY`. API reads return masked configuration only. Saved Twilio auth tokens, Telegram bot tokens, SMTP passwords, and webhook secrets must never be logged or returned to the frontend.
+Credential payloads are encrypted at rest with `DRIPDESK_ENCRYPTION_KEY` in the durable Postgres volume. API reads return masked configuration only. Saved Twilio auth tokens, Telegram bot tokens, SMTP passwords, and webhook secrets must never be logged or returned to the frontend. On page load, the admin form restores non-secret settings from the masked response and shows masked hints for saved credentials. Blank credential inputs on an update retain their saved values; they do not erase the encrypted configuration.
 
 ## Admin Setup
 
@@ -22,9 +22,10 @@ The admin integration screen supports:
 - Telegram bot token and optional webhook secret
 - SMTP host, port, username, password, from email, from name, and presets for Brevo, SendGrid, Mailgun, and generic SMTP
 
-Each card shows its own success, warning, or failure notice above the card. Admins can enter a test phone number (international `+` format), numeric Telegram chat ID, or email address and send a test message to that recipient. The saved credentials must be configured first. The API validates the recipient and credential shape, then queues a single-attempt `test-provider` job. The worker uses the same Twilio, Telegram, or SMTP transport as campaign delivery and marks the credential `verified` only after provider acceptance; rejected sends mark it `failed` with a safe error. The UI polls the job result and distinguishes queued, accepted, and failed outcomes. Acceptance does not guarantee final delivery to the inbox or device. Test messages do not create campaign outbox records or advance enrollments.
+Each card shows its own success, warning, or failure notice above the card. Admins can enter a test phone number (international `+` format), numeric Telegram chat ID, or email address and send a test message to that recipient. The saved credentials must be configured first. The API validates the recipient and credential shape, then queues a single-attempt `test-provider` job. The worker uses the same Twilio, Telegram, or SMTP transport as campaign delivery and marks the credential `verified` only after provider acceptance; rejected sends mark it `failed` with a sanitized provider diagnostic. The UI polls the job result and distinguishes queued, accepted, and failed outcomes. A failed test returns the stage, SMTP or provider code, HTTP status when applicable, and a redacted provider explanation; the summary is retained on the credential for page refreshes. Raw provider responses, tokens, recipient addresses, and stack traces are not exposed. Acceptance does not guarantee final delivery to the inbox or device. Test messages do not create campaign outbox records or advance enrollments.
 
 Tests require real provider credentials and network access. Telegram recipients must have started a chat with the bot before the bot can send to their chat ID.
+Production worker containers need an outbound-capable network in addition to the internal Postgres/Redis network; an internal-only worker cannot resolve or reach provider hosts.
 SMTP uses implicit TLS when the secure setting/port 465 is selected, and upgrades with STARTTLS for port 587 or any authenticated non-implicit-TLS connection. It does not send SMTP authentication over an unencrypted connection.
 
 ## Sending

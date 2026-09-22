@@ -28,7 +28,7 @@ Postgres and Redis expose local ports for development.
 
 `docker/docker-compose.prod.yml` keeps Postgres and Redis on an internal Docker network.
 
-The web and API services attach to an external `edge` network and include example Traefik labels. Replace example hosts before use.
+The web and API services attach to an external `edge` network and include example Traefik labels. Replace example hosts before use. The worker also joins a dedicated outbound bridge network so it can resolve and reach email, SMS, and Telegram providers without exposing a port or joining the shared reverse-proxy network; Postgres and Redis remain on the internal network only.
 
 Production assumptions:
 

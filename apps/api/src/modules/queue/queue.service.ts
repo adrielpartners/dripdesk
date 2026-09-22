@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JOB_NAMES, QUEUE_DEFAULTS, QUEUE_NAMES, type TestJobData, type TestProviderJobData } from '@dripdesk/shared';
-import { normalizeProviderError } from '@dripdesk/database';
+import { formatProviderDiagnostic, normalizeProviderError, parseProviderTestFailure } from '@dripdesk/database';
 import { Queue } from 'bullmq';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -57,7 +57,12 @@ export class QueueService implements OnModuleDestroy {
 
     const state = await job.getState();
     if (state === 'completed') return { status: 'success' as const };
-    if (state === 'failed') return { status: 'failure' as const, message: normalizeProviderError(job.failedReason) };
+    if (state === 'failed') {
+      const diagnostic = parseProviderTestFailure(job.failedReason);
+      return diagnostic
+        ? { status: 'failure' as const, message: formatProviderDiagnostic(diagnostic), diagnostic }
+        : { status: 'failure' as const, message: normalizeProviderError(job.failedReason) };
+    }
     return { status: 'pending' as const };
   }
 

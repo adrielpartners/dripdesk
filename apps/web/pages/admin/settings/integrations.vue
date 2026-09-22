@@ -17,6 +17,23 @@
           :role="notices[provider.type]?.tone === 'error' ? 'alert' : 'status'"
         >
           {{ notices[provider.type]?.message }}
+          <dl v-if="notices[provider.type]?.diagnostic" class="notice__diagnostic">
+            <template v-if="notices[provider.type]?.diagnostic?.stage">
+              <dt>Stage</dt><dd>{{ notices[provider.type]?.diagnostic?.stage }}</dd>
+            </template>
+            <template v-if="notices[provider.type]?.diagnostic?.code">
+              <dt>Code</dt><dd>{{ notices[provider.type]?.diagnostic?.code }}</dd>
+            </template>
+            <template v-if="notices[provider.type]?.diagnostic?.providerCode">
+              <dt>Provider code</dt><dd>{{ notices[provider.type]?.diagnostic?.providerCode }}</dd>
+            </template>
+            <template v-if="notices[provider.type]?.diagnostic?.httpStatus">
+              <dt>HTTP status</dt><dd>{{ notices[provider.type]?.diagnostic?.httpStatus }}</dd>
+            </template>
+            <template v-if="notices[provider.type]?.diagnostic?.detail">
+              <dt>Provider response</dt><dd>{{ notices[provider.type]?.diagnostic?.detail }}</dd>
+            </template>
+          </dl>
         </div>
         <AppCard>
           <form class="provider-form" @submit.prevent="save(provider.type)">
@@ -31,22 +48,23 @@
           </div>
 
           <template v-if="provider.type === 'twilio'">
-            <AppInput v-model="twilio.accountSid" label="Account SID" autocomplete="off" />
-            <AppInput v-model="twilio.authToken" label="Auth token" type="password" autocomplete="new-password" />
+            <AppInput v-model="twilio.accountSid" label="Account SID" :hint="savedFieldHint('twilio', 'accountSid')" placeholder="Leave blank to keep saved" autocomplete="off" />
+            <AppInput v-model="twilio.authToken" label="Auth token" :hint="savedFieldHint('twilio', 'authToken')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
             <AppInput v-model="twilio.fromNumber" label="From number" placeholder="+15551234567" autocomplete="off" />
           </template>
 
           <template v-else-if="provider.type === 'telegram'">
-            <AppInput v-model="telegram.botToken" label="Bot token" type="password" autocomplete="new-password" />
-            <AppInput v-model="telegram.webhookSecret" label="Webhook secret" type="password" autocomplete="new-password" />
+            <AppInput v-model="telegram.botToken" label="Bot token" :hint="savedFieldHint('telegram', 'botToken')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
+            <AppInput v-model="telegram.webhookSecret" label="Webhook secret" :hint="savedFieldHint('telegram', 'webhookSecret')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
           </template>
 
           <template v-else>
             <AppSelect v-model="smtp.preset" label="Preset" :options="smtpPresets" />
             <AppInput v-model="smtp.host" label="SMTP host" autocomplete="off" />
             <AppInput v-model="smtp.port" label="SMTP port" type="number" autocomplete="off" />
-            <AppInput v-model="smtp.username" label="Username" autocomplete="off" />
-            <AppInput v-model="smtp.password" label="Password" type="password" autocomplete="new-password" />
+            <AppSelect v-model="smtp.secure" label="Connection security" :options="smtpSecurityOptions" />
+            <AppInput v-model="smtp.username" label="Username" :hint="savedFieldHint('smtp', 'username')" placeholder="Leave blank to keep saved" autocomplete="off" />
+            <AppInput v-model="smtp.password" label="Password" :hint="savedFieldHint('smtp', 'password')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
             <AppInput v-model="smtp.fromEmail" label="From email" autocomplete="email" />
             <AppInput v-model="smtp.fromName" label="From name" autocomplete="off" />
           </template>
@@ -123,10 +141,23 @@ const smtpPresets = [
   { label: 'Mailgun', value: 'mailgun' },
 ];
 
+const smtpSecurityOptions = [
+  { label: 'STARTTLS / standard (usually port 587)', value: 'false' },
+  { label: 'Implicit TLS (usually port 465)', value: 'true' },
+];
+
 const credentials = ref<MaskedCredential[]>([]);
+let formHydrated = false;
 const pending = ref<ProviderType | ''>('');
 const pageError = ref('');
-type Notice = { tone: 'success' | 'error' | 'warning'; message: string };
+interface ProviderDiagnostic {
+  stage: string;
+  code?: string;
+  providerCode?: string;
+  httpStatus?: number;
+  detail?: string;
+}
+type Notice = { tone: 'success' | 'error' | 'warning'; message: string; diagnostic?: ProviderDiagnostic };
 const notices = reactive<Record<ProviderType, Notice | null>>({ twilio: null, telegram: null, smtp: null });
 const testRecipients = reactive<Record<ProviderType, string>>({ twilio: '', telegram: '', smtp: '' });
 const testing = reactive<Record<ProviderType, boolean>>({ twilio: false, telegram: false, smtp: false });
@@ -138,6 +169,7 @@ const smtp = reactive({
   preset: 'generic',
   host: '',
   port: '587',
+  secure: 'false',
   username: '',
   password: '',
   fromEmail: '',
@@ -151,6 +183,10 @@ async function loadCredentials() {
   try {
     credentials.value = await apiRequest<MaskedCredential[]>('/provider-credentials');
     pageError.value = '';
+    if (!formHydrated) {
+      hydrateSavedSettings();
+      formHydrated = true;
+    }
     for (const credential of credentials.value) {
       if (credential.status === 'failed' && credential.lastError && !notices[credential.providerType]) {
         notices[credential.providerType] = { tone: 'error', message: `${providerLabel(credential.providerType)}: ${credential.lastError}` };
@@ -159,6 +195,29 @@ async function loadCredentials() {
   } catch (caught) {
     pageError.value = caught instanceof Error ? caught.message : 'Could not load integration settings.';
   }
+}
+
+function hydrateSavedSettings() {
+  const sms = credentials.value.find((item) => item.providerType === 'twilio')?.maskedConfig;
+  twilio.fromNumber = savedText(sms?.fromNumber);
+
+  const email = credentials.value.find((item) => item.providerType === 'smtp')?.maskedConfig;
+  const preset = savedText(email?.preset);
+  smtp.preset = smtpPresets.some((item) => item.value === preset) ? preset : 'generic';
+  smtp.host = savedText(email?.host);
+  smtp.port = email?.port == null ? '587' : String(email.port);
+  smtp.secure = email?.secure === true ? 'true' : 'false';
+  smtp.fromEmail = savedText(email?.fromEmail);
+  smtp.fromName = savedText(email?.fromName);
+}
+
+function savedText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function savedFieldHint(providerType: ProviderType, field: string): string {
+  const masked = credentials.value.find((item) => item.providerType === providerType)?.maskedConfig[field];
+  return typeof masked === 'string' && masked ? `Saved: ${masked}. Leave blank to keep it.` : 'Not saved yet.';
 }
 
 async function save(providerType: ProviderType) {
@@ -205,13 +264,13 @@ async function pollTest(providerType: ProviderType, jobId: string) {
     for (let attempt = 0; attempt < 30 && pageActive; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       if (!pageActive) return;
-      const result = await apiRequest<{ status: 'pending' | 'success' | 'failure'; message?: string }>(
+      const result = await apiRequest<{ status: 'pending' | 'success' | 'failure'; message?: string; diagnostic?: ProviderDiagnostic }>(
         `/provider-credentials/${providerType}/test/${encodeURIComponent(jobId)}`,
       );
       if (result.status === 'pending') continue;
       notices[providerType] = result.status === 'success'
         ? { tone: 'success', message: `${providerLabel(providerType)} accepted the test message. Check the recipient inbox or device.` }
-        : { tone: 'error', message: result.message ?? `${providerLabel(providerType)} could not send the test message.` };
+        : { tone: 'error', message: `${providerLabel(providerType)} could not send the test message.`, diagnostic: result.diagnostic ?? { stage: 'provider response', detail: result.message ?? 'No further details were available.' } };
       await loadCredentials();
       return;
     }
@@ -226,7 +285,7 @@ async function pollTest(providerType: ProviderType, jobId: string) {
 function payload(providerType: ProviderType) {
   if (providerType === 'twilio') return { providerType, ...twilio };
   if (providerType === 'telegram') return { providerType, ...telegram };
-  return { providerType, ...smtp, port: Number(smtp.port), secure: Number(smtp.port) === 465 };
+  return { providerType, ...smtp, port: Number(smtp.port), secure: smtp.secure === 'true' };
 }
 
 function credentialStatus(providerType: ProviderType) {
@@ -315,5 +374,23 @@ function providerLabel(providerType: ProviderType) {
   border-color: var(--dd-color-warning);
   background: var(--dd-color-warning-soft);
   color: var(--dd-color-warning);
+}
+
+.notice__diagnostic {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--dd-space-1) var(--dd-space-3);
+  margin: var(--dd-space-2) 0 0;
+  font-size: var(--dd-font-size-sm);
+}
+
+.notice__diagnostic dt {
+  font-weight: var(--dd-font-weight-semibold);
+}
+
+.notice__diagnostic dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
 }
 </style>

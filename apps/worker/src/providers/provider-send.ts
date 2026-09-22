@@ -1,9 +1,12 @@
 import net from 'node:net';
 import tls from 'node:tls';
 import {
+  formatProviderDiagnostic,
   normalizeProviderError,
   ProviderCredentialStore,
   prisma,
+  sanitizeProviderDetail,
+  type ProviderDiagnostic,
   type SmtpConfig,
   type TelegramConfig,
   type TwilioConfig,
@@ -12,6 +15,52 @@ import type { TestProviderJobData } from '@dripdesk/shared';
 
 interface SendProviderMessageInput {
   outboxId: string;
+}
+
+class ProviderRequestError extends Error {
+  constructor(readonly diagnostic: ProviderDiagnostic) {
+    super(formatProviderDiagnostic(diagnostic));
+  }
+}
+
+class SmtpReplyError extends Error {
+  constructor(readonly replyCode: number, readonly reply: string) {
+    super(`SMTP response ${replyCode}`);
+  }
+}
+
+function diagnosticFromError(provider: ProviderDiagnostic['provider'], stage: string, error: unknown, secrets: string[] = []): ProviderDiagnostic {
+  if (error instanceof ProviderRequestError) return error.diagnostic;
+  if (error instanceof SmtpReplyError) {
+    const enhancedCode = error.reply.match(/\b[245]\.\d{1,3}\.\d{1,3}\b/)?.[0];
+    return {
+      provider,
+      stage,
+      code: `SMTP_${error.replyCode}`,
+      providerCode: enhancedCode,
+      detail: sanitizeProviderDetail(error.reply.replace(/^\d{3}[- ]?/, ''), secrets),
+    };
+  }
+
+  const cause = error && typeof error === 'object' && 'cause' in error ? error.cause : undefined;
+  const candidate = cause && typeof cause === 'object' && 'code' in cause ? cause.code
+    : error && typeof error === 'object' && 'code' in error ? error.code : undefined;
+  const code = typeof candidate === 'string' && /^[A-Z0-9_]{2,50}$/.test(candidate) ? candidate : undefined;
+  const descriptions: Record<string, string> = {
+    EAI_AGAIN: 'Temporary DNS lookup failure. Check outbound network access and DNS.',
+    ENOTFOUND: 'Provider hostname could not be resolved.',
+    ECONNREFUSED: 'Provider refused the connection.',
+    ETIMEDOUT: 'Connection to provider timed out.',
+    ECONNRESET: 'Provider closed the connection unexpectedly.',
+    CERT_HAS_EXPIRED: 'Provider TLS certificate has expired.',
+    UNABLE_TO_VERIFY_LEAF_SIGNATURE: 'Provider TLS certificate could not be verified.',
+  };
+  return {
+    provider,
+    stage,
+    code,
+    detail: code ? descriptions[code] ?? 'Network or TLS request failed.' : 'Provider request failed before a usable response was received.',
+  };
 }
 
 interface OutboxForSend {
@@ -160,9 +209,9 @@ export async function sendProviderTest(input: TestProviderJobData) {
     await credentials.markTested(input.organizationId, input.providerType, true);
     return { sent: true };
   } catch (error) {
-    const safeError = normalizeProviderError(error);
-    await credentials.markTested(input.organizationId, input.providerType, false, safeError);
-    throw new Error(safeError);
+    const diagnostic = diagnosticFromError(input.providerType, 'configuration or connection', error);
+    await credentials.markTested(input.organizationId, input.providerType, false, diagnostic);
+    throw new Error(JSON.stringify({ tag: 'dripdesk-provider-test', diagnostic }));
   }
 }
 
@@ -192,61 +241,104 @@ async function sendSms(config: TwilioConfig, recipient: string, body: string) {
     To: recipient,
     Body: body,
   });
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: params,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${config.accountSid}/Messages.json`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Basic ${Buffer.from(`${config.accountSid}:${config.authToken}`).toString('base64')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params,
+    });
+  } catch (error) {
+    throw new ProviderRequestError(diagnosticFromError('twilio', 'HTTP connection', error));
+  }
 
-  const result = (await response.json().catch(() => ({}))) as { sid?: string; message?: string };
-  if (!response.ok) throw new Error(result.message ?? 'Twilio send failed');
+  const result = (await response.json().catch(() => ({}))) as { sid?: string; message?: string; code?: number };
+  if (!response.ok) {
+    throw new ProviderRequestError({
+      provider: 'twilio',
+      stage: 'send message',
+      httpStatus: response.status,
+      providerCode: Number.isInteger(result.code) ? String(result.code) : undefined,
+      detail: result.message ? sanitizeProviderDetail(result.message, [config.authToken, config.accountSid]) : 'Twilio rejected the request.',
+    });
+  }
 
   return { provider: 'twilio', providerMessageId: result.sid };
 }
 
 async function sendTelegram(config: TelegramConfig, recipient: string, body: string) {
-  const response = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: recipient,
-      text: body,
-      disable_web_page_preview: false,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`https://api.telegram.org/bot${config.botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: recipient,
+        text: body,
+        disable_web_page_preview: false,
+      }),
+    });
+  } catch (error) {
+    throw new ProviderRequestError(diagnosticFromError('telegram', 'HTTP connection', error));
+  }
 
   const result = (await response.json().catch(() => ({}))) as {
     ok?: boolean;
     description?: string;
+    error_code?: number;
+    parameters?: { retry_after?: number };
     result?: { message_id?: number };
   };
-  if (!response.ok || !result.ok) throw new Error(result.description ?? 'Telegram send failed');
+  if (!response.ok || !result.ok) {
+    const retry = result.parameters?.retry_after;
+    throw new ProviderRequestError({
+      provider: 'telegram',
+      stage: 'send message',
+      httpStatus: response.status,
+      providerCode: Number.isInteger(result.error_code) ? String(result.error_code) : undefined,
+      detail: `${sanitizeProviderDetail(result.description ?? 'Telegram rejected the request.', [config.botToken])}${Number.isInteger(retry) ? ` Retry after ${retry} seconds.` : ''}`,
+    });
+  }
 
   return { provider: 'telegram', providerMessageId: result.result?.message_id?.toString() };
 }
 
 async function sendEmail(config: SmtpConfig, recipient: string, subject: string | null, body: string) {
   const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@dripdesk.local>`;
-  const smtp = await connectSmtp(config);
+  let smtp: Awaited<ReturnType<typeof connectSmtp>>;
+  try {
+    smtp = await connectSmtp(config);
+  } catch (error) {
+    throw new ProviderRequestError(diagnosticFromError('smtp', 'connect', error));
+  }
 
+  let stage = 'server greeting';
   try {
     await smtp.expect([220]);
+    stage = 'EHLO';
     await smtp.command(`EHLO dripdesk.local`, [250]);
     if (!config.secure && (config.port === 587 || config.username || config.password)) {
+      stage = 'STARTTLS';
       await smtp.command('STARTTLS', [220]);
+      stage = 'TLS handshake';
       await smtp.startTls();
+      stage = 'EHLO after TLS';
       await smtp.command('EHLO dripdesk.local', [250]);
     }
     if (config.username || config.password) {
+      stage = 'AUTH LOGIN';
       await smtp.command('AUTH LOGIN', [334]);
       await smtp.command(Buffer.from(config.username ?? '').toString('base64'), [334]);
       await smtp.command(Buffer.from(config.password ?? '').toString('base64'), [235]);
     }
+    stage = 'MAIL FROM';
     await smtp.command(`MAIL FROM:<${config.fromEmail}>`, [250]);
+    stage = 'RCPT TO';
     await smtp.command(`RCPT TO:<${recipient}>`, [250, 251]);
+    stage = 'DATA';
     await smtp.command('DATA', [354]);
     await smtp.command(
       [
@@ -263,6 +355,8 @@ async function sendEmail(config: SmtpConfig, recipient: string, subject: string 
       [250],
     );
     return { provider: 'smtp', providerMessageId: messageId };
+  } catch (error) {
+    throw new ProviderRequestError(diagnosticFromError('smtp', stage, error, [config.password ?? '', config.username ?? '']));
   } finally {
     smtp.close();
   }
@@ -280,7 +374,7 @@ async function connectSmtp(config: SmtpConfig) {
   function acceptResponse(line: string, expected: number[]) {
     const code = Number(line.slice(0, 3));
     if (expected.includes(code)) return;
-    throw new Error(`SMTP provider rejected request with ${code}`);
+    throw new SmtpReplyError(code, line);
   }
 
   const onData = (chunk: string) => {

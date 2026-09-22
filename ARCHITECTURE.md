@@ -902,6 +902,8 @@ Phase 15 sends prepared outbox records through the configured organization provi
 
 Admin integration tests enqueue a separate single-attempt `test-provider` job with an explicitly entered recipient. The worker uses the campaign provider transports, records provider acceptance or failure on the credential, and does not create an enrollment or outbox message. The admin polls a tenant-scoped job status endpoint; provider acceptance is not a final-delivery receipt.
 
+Provider settings remain encrypted in Postgres across builds. The admin rehydrates non-secret fields from masked reads and updates preserve existing credentials when secret inputs are blank. Failed test jobs retain sanitized provider diagnostics (stage, protocol/provider code, HTTP status, redacted explanation) for the tenant-scoped API and credential status display.
+
 ## Retry Strategy
 
 Suggested defaults:
@@ -1159,6 +1161,8 @@ Internet
 - Configure provider webhooks to the public API URL.
 
 Phase 20 adds Dockerfiles for web, API, and worker, plus local and production-style Compose files. The local stack binds published ports to loopback and uses Mailpit for repeatable SMTP campaign tests. The production-style Compose example keeps Postgres and Redis on an internal network and exposes web/API only through an edge network intended for a reverse proxy such as Traefik.
+
+Production workers additionally attach to a dedicated outbound bridge network for provider DNS and connections, with no published ports. Postgres and Redis remain on the internal-only network.
 
 ---
 

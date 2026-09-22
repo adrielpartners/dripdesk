@@ -24,7 +24,9 @@ export class ProviderCredentialsService {
   }
 
   async upsert(tenant: TenantContext, dto: UpsertProviderCredentialDto) {
-    const config = dtoToProviderConfig(dto);
+    assertProviderType(dto.providerType);
+    const existing = await this.store.getConfig(tenant.organizationId, dto.providerType);
+    const config = dtoToProviderConfig(dto, existing);
     const validation = validateProviderConfig(dto.providerType, config);
     if (!validation.ok) throw new BadRequestException(validation.error);
     return this.store.upsert(tenant.organizationId, dto.providerType, config);
@@ -66,30 +68,33 @@ function assertTestRecipient(providerType: ProviderType, recipient: string) {
   }
 }
 
-function dtoToProviderConfig(dto: UpsertProviderCredentialDto): ProviderConfig {
+function dtoToProviderConfig(dto: UpsertProviderCredentialDto, existing: ProviderConfig | null): ProviderConfig {
   if (dto.providerType === 'twilio') {
+    const previous = existing as Extract<ProviderConfig, { accountSid: string }> | null;
     return {
-      accountSid: dto.accountSid ?? '',
-      authToken: dto.authToken ?? '',
-      fromNumber: dto.fromNumber ?? '',
+      accountSid: dto.accountSid?.trim() || previous?.accountSid || '',
+      authToken: dto.authToken || previous?.authToken || '',
+      fromNumber: dto.fromNumber?.trim() || previous?.fromNumber || '',
     };
   }
 
   if (dto.providerType === 'telegram') {
+    const previous = existing as Extract<ProviderConfig, { botToken: string }> | null;
     return {
-      botToken: dto.botToken ?? '',
-      webhookSecret: dto.webhookSecret || undefined,
+      botToken: dto.botToken || previous?.botToken || '',
+      webhookSecret: dto.webhookSecret || previous?.webhookSecret || undefined,
     };
   }
 
+  const previous = existing as Extract<ProviderConfig, { host: string }> | null;
   return {
-    host: dto.host ?? '',
-    port: dto.port ?? 587,
-    username: dto.username || undefined,
-    password: dto.password || undefined,
-    fromEmail: dto.fromEmail ?? '',
-    fromName: dto.fromName || undefined,
-    secure: Boolean(dto.secure),
-    preset: dto.preset ?? 'generic',
+    host: dto.host?.trim() || previous?.host || '',
+    port: dto.port ?? previous?.port ?? 587,
+    username: dto.username || previous?.username || undefined,
+    password: dto.password || previous?.password || undefined,
+    fromEmail: dto.fromEmail?.trim() || previous?.fromEmail || '',
+    fromName: dto.fromName === undefined ? previous?.fromName : dto.fromName || undefined,
+    secure: dto.secure ?? previous?.secure ?? false,
+    preset: dto.preset ?? previous?.preset ?? 'generic',
   };
 }

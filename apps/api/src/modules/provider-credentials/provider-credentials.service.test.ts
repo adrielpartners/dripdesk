@@ -39,5 +39,25 @@ async function run() {
   assert.deepEqual(await service.testStatus(tenant, 'smtp', 'job-1'), {
     organizationId: 'organization-1', providerType: 'smtp', jobId: 'job-1',
   });
+
+  let savedConfig: object | null = null;
+  (service as unknown as { store: object }).store = {
+    getConfig: async () => ({
+      host: 'smtp-relay.brevo.com', port: 587, username: 'saved-user', password: 'saved-secret',
+      fromEmail: 'saved@example.com', fromName: 'Saved name', secure: false, preset: 'brevo',
+    }),
+    upsert: async (_organizationId: string, _providerType: string, config: object) => {
+      savedConfig = config;
+      return { status: 'configured' };
+    },
+  };
+  await service.upsert(tenant, {
+    providerType: 'smtp', host: 'smtp-relay.brevo.com', port: 587, username: '', password: '',
+    fromEmail: 'saved@example.com', fromName: 'Saved name', secure: false, preset: 'brevo',
+  });
+  assert.deepEqual(savedConfig, {
+    host: 'smtp-relay.brevo.com', port: 587, username: 'saved-user', password: 'saved-secret',
+    fromEmail: 'saved@example.com', fromName: 'Saved name', secure: false, preset: 'brevo',
+  }, 'blank secret inputs keep the saved values');
   console.log('provider-credentials service tests passed');
 }

@@ -28,6 +28,15 @@ export interface SmtpConfig {
 
 export type ProviderConfig = TwilioConfig | TelegramConfig | SmtpConfig;
 
+export interface ProviderDiagnostic {
+  provider: ProviderType;
+  stage: string;
+  code?: string;
+  httpStatus?: number;
+  providerCode?: string;
+  detail?: string;
+}
+
 export class ProviderCredentialStore {
   constructor(
     private readonly client: PrismaClient = prisma,
@@ -140,7 +149,7 @@ export class ProviderCredentialStore {
     return { organizationId: credential.organizationId, authToken: config.authToken };
   }
 
-  async markTested(organizationId: string, providerType: ProviderType, ok: boolean, error?: string) {
+  async markTested(organizationId: string, providerType: ProviderType, ok: boolean, error?: ProviderDiagnostic | string) {
     return this.client.providerCredential.update({
       where: {
         organizationId_providerType: {
@@ -151,7 +160,7 @@ export class ProviderCredentialStore {
       data: {
         status: ok ? 'verified' : 'failed',
         lastTestedAt: new Date(),
-        lastError: ok ? null : normalizeProviderError(error),
+        lastError: ok ? null : typeof error === 'object' ? formatProviderDiagnostic(error) : normalizeProviderError(error),
       },
       select: {
         id: true,
@@ -225,6 +234,51 @@ export function normalizeProviderError(error?: unknown) {
   if (/rate|too many/i.test(message)) return 'Provider rate limit reached';
   if (/timeout|network|econn/i.test(message)) return 'Provider network request failed';
   return 'Provider request failed';
+}
+
+export function formatProviderDiagnostic(diagnostic: ProviderDiagnostic): string {
+  const provider = diagnostic.provider === 'smtp' ? 'SMTP' : diagnostic.provider === 'twilio' ? 'Twilio' : 'Telegram';
+  const stage = sanitizeProviderDetail(diagnostic.stage).slice(0, 40);
+  const codes = [diagnostic.code, diagnostic.providerCode, diagnostic.httpStatus ? `HTTP ${diagnostic.httpStatus}` : undefined]
+    .filter(Boolean)
+    .join(', ');
+  const detail = diagnostic.detail ? `: ${sanitizeProviderDetail(diagnostic.detail)}` : '';
+  return `${provider} ${stage} failed${codes ? ` (${codes})` : ''}${detail}`;
+}
+
+export function sanitizeProviderDetail(value: string, secrets: string[] = []): string {
+  let safe = value;
+  for (const secret of secrets) {
+    if (secret && secret.length >= 4) safe = safe.split(secret).join('[redacted]');
+  }
+  return safe
+    .replace(/[\r\n\x00-\x1f\x7f]+/g, ' ')
+    .replace(/https?:\/\/\S+/gi, '[link redacted]')
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email redacted]')
+    .replace(/\+\d[\d ()-]{6,}\d/g, '[phone redacted]')
+    .replace(/\b[A-Za-z0-9_-]{25,}\b/g, '[value redacted]')
+    .replace(/\b\d{12,}\b/g, '[number redacted]')
+    .trim()
+    .slice(0, 240);
+}
+
+export function parseProviderTestFailure(value: string): ProviderDiagnostic | null {
+  try {
+    const parsed = JSON.parse(value) as { tag?: string; diagnostic?: ProviderDiagnostic };
+    const detail = parsed.diagnostic;
+    if (parsed.tag !== 'dripdesk-provider-test' || !detail || !['smtp', 'twilio', 'telegram'].includes(detail.provider)) return null;
+    if (typeof detail.stage !== 'string' || detail.stage.length > 80) return null;
+    return {
+      provider: detail.provider,
+      stage: sanitizeProviderDetail(detail.stage),
+      code: typeof detail.code === 'string' && /^[A-Z0-9_]{2,50}$/.test(detail.code) ? detail.code : undefined,
+      providerCode: typeof detail.providerCode === 'string' && /^[0-9.]{1,20}$/.test(detail.providerCode) ? detail.providerCode : undefined,
+      httpStatus: Number.isInteger(detail.httpStatus) && detail.httpStatus! >= 100 && detail.httpStatus! <= 599 ? detail.httpStatus : undefined,
+      detail: typeof detail.detail === 'string' ? sanitizeProviderDetail(detail.detail) : undefined,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export function verifySharedSecret(provided: string | undefined, expected: string | undefined) {

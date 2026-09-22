@@ -73,6 +73,7 @@ services:
       DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
     networks:
       - internal
+      - outbound
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,5 +115,6 @@ volumes:
 networks:
   internal:
     internal: true
+  outbound:
   edge:
     external: true
