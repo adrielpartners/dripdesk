@@ -544,6 +544,10 @@ Types:
 
 Phase 15 stores provider credentials in `provider_credentials`. The encrypted payload is never returned to the frontend; API responses expose masked configuration only. Credentials are organization-owned BYO settings.
 
+## Subscriber Intake
+
+External signup platforms call `POST /api/webhooks/subscribers/:organizationId` with `X-DripDesk-Intake-Key`. The organization-owned key is generated or rotated by an owner/admin at `/api/subscriber-intake/rotate-key`; only its SHA-256 hash is stored in `subscriber_intake_credentials`, and the plaintext is shown once. The endpoint requires an external `eventId`, campaign ID, display name, explicit `consent: true`, and at least one channel address. It normalizes channel addresses, validates campaign/first-step channel compatibility, refuses disabled/opted-out or inactive contacts, creates or matches a person, and uses the existing enrollment rules in one database transaction. `subscriber_intake_events` stores a tenant-unique event ID, payload hash, person ID, and enrollment ID so identical retries return the original result and changed replays conflict. The existing worker schedules the first step according to the campaign schedule; intake does not send synchronously. See `docs/subscriber-intake.md` for the public contract.
+
 ## Subscription / Billing Plan
 
 Tracks Stripe subscription state and plan limits.

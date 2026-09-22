@@ -3,7 +3,7 @@
     <header class="page-header">
       <p class="page-header__eyebrow">Settings</p>
       <h1 class="page-header__title">Integrations</h1>
-      <p class="page-header__description">Configure organization-owned SMS, Telegram, and email providers.</p>
+      <p class="page-header__description">Configure delivery providers and subscriber intake.</p>
     </header>
 
     <div v-if="pageError" class="notice notice--error" role="alert">{{ pageError }}</div>
@@ -87,6 +87,34 @@
         </AppCard>
       </div>
     </section>
+
+    <div v-if="intakeNotice" class="notice" :class="`notice--${intakeNotice.tone}`" role="status">{{ intakeNotice.message }}</div>
+    <AppCard>
+      <div class="provider-form">
+        <div class="provider-form__header">
+          <div>
+            <h2>Subscriber intake webhook</h2>
+            <p>Let another platform add a consenting contact and enroll them in an active campaign.</p>
+          </div>
+          <AppBadge :tone="intakeSettings?.configured ? 'success' : 'neutral'">{{ intakeSettings?.configured ? 'Ready' : 'Not set up' }}</AppBadge>
+        </div>
+        <div v-if="intakeUrl" class="intake-detail">
+          <strong>POST endpoint</strong>
+          <code>{{ intakeUrl }}</code>
+        </div>
+        <div v-if="intakeKey" class="intake-detail">
+          <strong>Secret key — copy now; it cannot be shown again</strong>
+          <code>{{ intakeKey }}</code>
+        </div>
+        <p>Send the key in the <code>X-DripDesk-Intake-Key</code> header. Use a unique <code>eventId</code> for each signup and resend the same ID on retries. Copy a campaign ID from the end of its campaign-detail URL.</p>
+        <div class="intake-detail">
+          <strong>Example JSON body</strong>
+          <code>{ "eventId": "signup-123", "campaignId": "CAMPAIGN_UUID", "displayName": "Jordan Lee", "email": "jordan@example.com", "consent": true }</code>
+        </div>
+        <AppButton type="button" :disabled="intakePending" @click="rotateIntakeKey">{{ intakeSettings?.configured ? 'Rotate secret key' : 'Generate secret key' }}</AppButton>
+        <p v-if="intakeSettings?.configured">Rotating immediately invalidates the previous key. Update the sending platform before its next webhook.</p>
+      </div>
+    </AppCard>
   </div>
 </template>
 
@@ -147,6 +175,14 @@ const smtpSecurityOptions = [
 ];
 
 const credentials = ref<MaskedCredential[]>([]);
+const auth = useAuthSession();
+const runtime = useRuntimeConfig();
+const intakeSettings = ref<{ configured: boolean; createdAt: string | null } | null>(null);
+const intakeKey = ref('');
+const intakePending = ref(false);
+const intakeNotice = ref<{ tone: 'success' | 'error' | 'warning'; message: string } | null>(null);
+const intakeUrl = computed(() => auth.user.value?.organizationId
+  ? `${runtime.public.apiUrl.replace(/\/$/, '')}/webhooks/subscribers/${auth.user.value.organizationId}` : '');
 let formHydrated = false;
 const pending = ref<ProviderType | ''>('');
 const pageError = ref('');
@@ -176,8 +212,32 @@ const smtp = reactive({
   fromName: '',
 });
 
-onMounted(loadCredentials);
+onMounted(() => { void loadCredentials(); void loadIntakeSettings(); });
 onUnmounted(() => { pageActive = false; });
+
+async function loadIntakeSettings() {
+  try {
+    intakeSettings.value = await apiRequest<{ configured: boolean; createdAt: string | null }>('/subscriber-intake');
+  } catch (caught) {
+    intakeNotice.value = { tone: 'error', message: caught instanceof Error ? caught.message : 'Could not load subscriber intake settings.' };
+  }
+}
+
+async function rotateIntakeKey() {
+  if (intakeSettings.value?.configured && !window.confirm('Rotate the subscriber intake key? The existing key will stop working immediately.')) return;
+  intakePending.value = true;
+  intakeNotice.value = null;
+  try {
+    const result = await apiRequest<{ key: string }>('/subscriber-intake/rotate-key', { method: 'POST' });
+    intakeKey.value = result.key;
+    await loadIntakeSettings();
+    intakeNotice.value = { tone: 'success', message: 'Secret key created. Copy it into the sending platform now; DripDesk will not display it again.' };
+  } catch (caught) {
+    intakeNotice.value = { tone: 'error', message: caught instanceof Error ? caught.message : 'Could not generate the subscriber intake key.' };
+  } finally {
+    intakePending.value = false;
+  }
+}
 
 async function loadCredentials() {
   try {
@@ -392,5 +452,19 @@ function providerLabel(providerType: ProviderType) {
   min-width: 0;
   margin: 0;
   overflow-wrap: anywhere;
+}
+
+.intake-detail {
+  display: grid;
+  gap: var(--dd-space-1);
+  min-width: 0;
+}
+
+.intake-detail code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: var(--dd-space-2);
+  border: var(--dd-border-width) solid var(--dd-color-border);
+  border-radius: var(--dd-radius-md);
 }
 </style>

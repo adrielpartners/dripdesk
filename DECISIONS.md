@@ -809,3 +809,25 @@ A provider call and a database transaction cannot be atomic. Repeating an uncert
 ## Reversibility
 
 Moderate. A provider-supported idempotency key or reconciliation API could allow safer automatic retries later.
+
+---
+
+# Decision 028: Organization-scoped subscriber intake with one-time keys and durable event IDs
+
+## Decision
+
+Allow external systems to enroll subscribers through a JSON webhook using an organization-specific random key. Store only its hash, show it once, and require a sender-provided event ID plus explicit consent. Perform contact matching, enrollment, and event recording in one transaction. Identical retries return the original IDs.
+
+## Rationale
+
+External platforms need a simple setup that does not expose an admin JWT. Tenant scoping, opt-out checks, and event IDs prevent accidental cross-organization writes and duplicate signup effects. The existing scheduler remains the sole owner of send timing.
+
+## Tradeoffs
+
+- Key rotation immediately disables the previous key; a short overlap is not supported in v1.
+- One key per organization does not isolate multiple external senders. Separate credentials and audit attribution can be added later.
+- The sender attests to consent; DripDesk does not yet store consent evidence.
+
+## Date Adopted
+
+2026-09-22

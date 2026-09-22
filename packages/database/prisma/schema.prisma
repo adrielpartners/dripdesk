@@ -29,6 +29,8 @@ model Organization {
   unsubscribeEvents UnsubscribeEvent[]
   billingSubscription BillingSubscription?
   inviteTokens        InviteToken[]
+  intakeCredential    SubscriberIntakeCredential?
+  intakeEvents        SubscriberIntakeEvent[]
 
   @@index([slug], map: "organizations_slug_idx")
   @@map("organizations")
@@ -76,6 +78,7 @@ model Person {
   trackedLinks TrackedLink[]
   unsubscribeTokens UnsubscribeToken[]
   unsubscribeEvents UnsubscribeEvent[]
+  intakeEvents SubscriberIntakeEvent[]
 
   @@index([organizationId, status], map: "persons_organization_id_status_idx")
   @@index([organizationId, displayName], map: "persons_organization_id_display_name_idx")
@@ -189,6 +192,7 @@ model Enrollment {
   trackedLinks TrackedLink[]
   unsubscribeTokens UnsubscribeToken[]
   unsubscribeEvents UnsubscribeEvent[]
+  intakeEvents SubscriberIntakeEvent[]
 
   @@unique([personId, campaignId], map: "enrollments_person_id_campaign_id_key")
   @@index([organizationId, status], map: "enrollments_organization_id_status_idx")
@@ -196,6 +200,36 @@ model Enrollment {
   @@index([personId, status], map: "enrollments_person_id_status_idx")
   @@index([organizationId, enrolledAt], map: "enrollments_organization_id_enrolled_at_idx")
   @@map("enrollments")
+}
+
+model SubscriberIntakeCredential {
+  organizationId String @id @map("organization_id") @db.Uuid
+  tokenHash      String @map("token_hash")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("subscriber_intake_credentials")
+}
+
+model SubscriberIntakeEvent {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  eventId        String @map("event_id")
+  payloadHash    String @map("payload_hash")
+  personId       String @map("person_id") @db.Uuid
+  enrollmentId   String @map("enrollment_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  person Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, eventId], map: "subscriber_intake_events_organization_id_event_id_key")
+  @@index([personId], map: "subscriber_intake_events_person_id_idx")
+  @@index([enrollmentId], map: "subscriber_intake_events_enrollment_id_idx")
+  @@map("subscriber_intake_events")
 }
 
 model EnrollmentStepState {

@@ -30,17 +30,17 @@ export class EnrollmentsRepository {
     };
   }
 
-  async createForTenant(tenant: TenantContext, campaignId: string, personId: string) {
+  async createForTenant(tenant: TenantContext, campaignId: string, personId: string, client: Prisma.TransactionClient = this.prisma) {
     const [campaign, person] = await Promise.all([
-      this.findCampaignForTenant(tenant, campaignId),
-      this.findPersonForTenant(tenant, personId),
+      this.findCampaignForTenant(tenant, campaignId, client),
+      this.findPersonForTenant(tenant, personId, client),
     ]);
 
     if (campaign.status !== 'active') {
       throw new ConflictException('Campaign must be active before enrolling people');
     }
 
-    const steps = await this.prisma.campaignStep.findMany({
+    const steps = await client.campaignStep.findMany({
       where: {
         campaignId: campaign.id,
         status: 'published',
@@ -52,7 +52,7 @@ export class EnrollmentsRepository {
       throw new ConflictException('Campaign must have at least one published step before enrollment');
     }
 
-    const existing = await this.prisma.enrollment.findUnique({
+    const existing = await client.enrollment.findUnique({
       where: { personId_campaignId: { personId: person.id, campaignId: campaign.id } },
     });
 
@@ -60,11 +60,11 @@ export class EnrollmentsRepository {
       throw new ConflictException('Person already has an enrollment for this campaign');
     }
 
-    await this.assertActiveContactCapacity(tenant, person.id);
+    await this.assertActiveContactCapacity(tenant, person.id, client);
 
     if (existing?.status === 'removed') {
-      await this.prisma.enrollmentStepState.deleteMany({ where: { enrollmentId: existing.id } });
-      return this.prisma.enrollment.update({
+      await client.enrollmentStepState.deleteMany({ where: { enrollmentId: existing.id } });
+      return client.enrollment.update({
         where: { id: existing.id },
         data: {
           status: 'active',
@@ -85,7 +85,7 @@ export class EnrollmentsRepository {
       });
     }
 
-    return this.prisma.enrollment.create({
+    return client.enrollment.create({
       data: {
         organizationId: tenant.organizationId,
         campaignId: campaign.id,
@@ -147,8 +147,8 @@ export class EnrollmentsRepository {
     return enrollment;
   }
 
-  private async findCampaignForTenant(tenant: TenantContext, campaignId: string) {
-    const campaign = await this.prisma.campaign.findFirst({
+  private async findCampaignForTenant(tenant: TenantContext, campaignId: string, client: Prisma.TransactionClient = this.prisma) {
+    const campaign = await client.campaign.findFirst({
       where: {
         id: campaignId,
         organizationId: tenant.organizationId,
@@ -160,8 +160,8 @@ export class EnrollmentsRepository {
     return campaign;
   }
 
-  private async findPersonForTenant(tenant: TenantContext, personId: string) {
-    const person = await this.prisma.person.findFirst({
+  private async findPersonForTenant(tenant: TenantContext, personId: string, client: Prisma.TransactionClient = this.prisma) {
+    const person = await client.person.findFirst({
       where: {
         id: personId,
         organizationId: tenant.organizationId,
@@ -173,10 +173,10 @@ export class EnrollmentsRepository {
     return person;
   }
 
-  private async assertActiveContactCapacity(tenant: TenantContext, personId: string) {
+  private async assertActiveContactCapacity(tenant: TenantContext, personId: string, client: Prisma.TransactionClient = this.prisma) {
     const [activeContactPersonIds, targetActiveEnrollment] = await Promise.all([
-      this.activeContactPersonIds(tenant),
-      this.prisma.enrollment.findFirst({
+      this.activeContactPersonIds(tenant, client),
+      client.enrollment.findFirst({
         where: {
           organizationId: tenant.organizationId,
           personId,
@@ -189,7 +189,7 @@ export class EnrollmentsRepository {
 
     if (targetActiveEnrollment) return;
 
-    const usage = await this.findActiveContactLimit(tenant);
+    const usage = await this.findActiveContactLimit(tenant, client);
     if (usage.activeContactLimit === null) return;
 
     if (activeContactPersonIds.length >= usage.activeContactLimit) {
@@ -201,8 +201,8 @@ export class EnrollmentsRepository {
     return (await this.activeContactPersonIds(tenant)).length;
   }
 
-  private activeContactPersonIds(tenant: TenantContext) {
-    return this.prisma.enrollment.findMany({
+  private activeContactPersonIds(tenant: TenantContext, client: Prisma.TransactionClient = this.prisma) {
+    return client.enrollment.findMany({
       where: {
         organizationId: tenant.organizationId,
         status: 'active',
@@ -217,8 +217,8 @@ export class EnrollmentsRepository {
     return new Date(Date.now() - ACTIVE_CONTACT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   }
 
-  private async findActiveContactLimit(tenant: TenantContext) {
-    const subscription = await this.prisma.billingSubscription.findUnique({
+  private async findActiveContactLimit(tenant: TenantContext, client: Prisma.TransactionClient = this.prisma) {
+    const subscription = await client.billingSubscription.findUnique({
       where: { organizationId: tenant.organizationId },
       select: { planId: true, activeContactLimit: true },
     });

@@ -1,13 +1,26 @@
-import { Body, Controller, Headers, Param, Post } from '@nestjs/common';
+import { Body, Controller, Headers, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ok } from '../../common/api-response';
 import { WebhooksService } from './webhooks.service';
+import { SubscriberIntakeService } from './subscriber-intake.service';
+import { SubscriberIntakeDto } from './dto/subscriber-intake.dto';
 
 @ApiTags('webhooks')
 @Controller('webhooks')
 export class WebhooksController {
-  constructor(private readonly webhooks: WebhooksService) {}
+  constructor(private readonly webhooks: WebhooksService, private readonly intake: SubscriberIntakeService) {}
+
+  @Post('subscribers/:organizationId')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @ApiOperation({ summary: 'Register a consenting subscriber and start a campaign enrollment' })
+  async receiveSubscriber(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Headers('x-dripdesk-intake-key') key: string | undefined,
+    @Body() dto: SubscriberIntakeDto,
+  ) {
+    return ok(await this.intake.receive(organizationId, key, dto));
+  }
 
   @Post('twilio/status')
   @Throttle({ default: { limit: 300, ttl: 60000 } })
