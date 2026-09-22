@@ -72,7 +72,7 @@ services:
     environment:
       DRIPDESK_ENV: production
       DRIPDESK_REDIS_URL: redis://redis:6379
-      DRIPDESK_PUBLIC_API_URL: http://api:3000/api
+      DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
       DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
     networks:
       - internal
