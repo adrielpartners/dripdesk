@@ -4,7 +4,10 @@
       <div class="shell__header-inner">
         <div class="shell__topline">
           <NuxtLink class="shell__brand" to="/admin">DripDesk</NuxtLink>
-          <span class="shell__user">{{ user?.email }}</span>
+          <div class="shell__account">
+            <span class="shell__user">{{ user?.email }}</span>
+            <AppButton variant="ghost" size="sm" @click="logout">Log out</AppButton>
+          </div>
         </div>
         <nav class="shell__nav" aria-label="Admin navigation">
           <NuxtLink class="shell__nav-link" to="/admin">Dashboard</NuxtLink>
@@ -22,5 +25,5 @@
 </template>
 
 <script setup lang="ts">
-const { user } = useAuthSession();
+const { user, logout } = useAuthSession();
 </script>

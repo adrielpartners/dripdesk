@@ -36,6 +36,12 @@
   font-size: var(--dd-font-size-sm);
 }
 
+.shell__account {
+  display: grid;
+  justify-items: end;
+  gap: var(--dd-space-2);
+}
+
 .shell__nav {
   display: flex;
   gap: var(--dd-space-2);
