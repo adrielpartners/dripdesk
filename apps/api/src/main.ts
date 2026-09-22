@@ -22,7 +22,7 @@ async function bootstrap() {
     origin: configService.get<string>('dripdesk.publicWebUrl', 'http://localhost:3001'),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-DripDesk-Organization-Id'],
     maxAge: 86400,
   });
 

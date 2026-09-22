@@ -48,6 +48,7 @@ Rate limiting:
 CORS:
 
 - API CORS is restricted to `DRIPDESK_PUBLIC_WEB_URL`.
+- The browser may send `X-DripDesk-Organization-Id` for tenant-scoped requests; API preflight explicitly allows this header.
 
 Logging:
 
