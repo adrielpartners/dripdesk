@@ -1,3 +1,5 @@
+import { getApiErrorMessage } from '~/services/api-errors';
+
 interface ApiEnvelope<T> {
   ok: boolean;
   data?: T;
@@ -20,16 +22,22 @@ export async function apiRequest<T>(path: string, options: Parameters<typeof $fe
     headers.set('x-dripdesk-organization-id', auth.user.value.organizationId);
   }
 
-  const response = await $fetch<ApiEnvelope<T>>(path, {
-    ...options,
-    baseURL: config.public.apiUrl,
-    headers,
-  });
+  let response: ApiEnvelope<T>;
+
+  try {
+    response = await $fetch<ApiEnvelope<T>>(path, {
+      ...options,
+      baseURL: config.public.apiUrl,
+      headers,
+      ignoreResponseError: true,
+    });
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error));
+  }
 
   if (!response.ok || response.data === undefined) {
-    throw new Error(response.error?.message ?? 'Request failed');
+    throw new Error(getApiErrorMessage(response));
   }
 
   return response.data;
 }
-

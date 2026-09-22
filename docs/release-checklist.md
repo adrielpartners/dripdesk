@@ -42,6 +42,7 @@ Run with Postgres, Redis, API, worker, and web available:
 - leave `DRIPDESK_ENABLE_API_DOCS` unset or false unless API docs should be publicly exposed
 - configure provider credentials per organization
 - verify CORS origin
+- verify API failures show the user-facing explanation for their error code, rather than a raw request error
 - verify reverse proxy/TLS
 - configure Postgres backups
 - run dependency audit

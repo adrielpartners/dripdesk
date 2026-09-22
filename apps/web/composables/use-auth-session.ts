@@ -1,4 +1,5 @@
 import { computed } from 'vue';
+import { apiRequest } from '~/services/api-client';
 
 type UserRole = 'owner' | 'admin' | 'recipient';
 
@@ -16,22 +17,12 @@ interface AuthSession {
   user: AuthUser;
 }
 
-interface ApiEnvelope<T> {
-  ok: boolean;
-  data?: T;
-  error?: {
-    code: string;
-    message: string;
-  };
-}
-
 const STORAGE_KEY = 'dripdesk.auth.session';
 
 export function useAuthSession() {
   const session = useState<AuthSession | null>('auth-session', () => null);
   const pending = useState<boolean>('auth-pending', () => false);
   const error = useState<string | null>('auth-error', () => null);
-  const config = useRuntimeConfig();
 
   function loadStoredSession() {
     if (!import.meta.client || session.value) return session.value;
@@ -72,18 +63,13 @@ export function useAuthSession() {
     error.value = null;
 
     try {
-      const response = await $fetch<ApiEnvelope<AuthSession>>('/auth/register', {
-        baseURL: config.public.apiUrl,
+      const response = await apiRequest<AuthSession>('/auth/register', {
         method: 'POST',
         body: params,
       });
 
-      if (!response.ok || !response.data) {
-        throw new Error(response.error?.message ?? 'Registration failed');
-      }
-
-      setSession(response.data);
-      return response.data;
+      setSession(response);
+      return response;
     } catch (registerError) {
       error.value = registerError instanceof Error ? registerError.message : 'Registration failed';
       throw registerError;
@@ -97,18 +83,13 @@ export function useAuthSession() {
     error.value = null;
 
     try {
-      const response = await $fetch<ApiEnvelope<AuthSession>>('/auth/login', {
-        baseURL: config.public.apiUrl,
+      const response = await apiRequest<AuthSession>('/auth/login', {
         method: 'POST',
         body: { email, password },
       });
 
-      if (!response.ok || !response.data) {
-        throw new Error(response.error?.message ?? 'Login failed');
-      }
-
-      setSession(response.data);
-      return response.data;
+      setSession(response);
+      return response;
     } catch (loginError) {
       error.value = loginError instanceof Error ? loginError.message : 'Login failed';
       throw loginError;
