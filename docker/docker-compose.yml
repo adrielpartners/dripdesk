@@ -95,13 +95,13 @@ services:
       context: ..
       dockerfile: docker/web.Dockerfile
       args:
-        DRIPDESK_PUBLIC_API_URL: http://localhost:3000/api
-        DRIPDESK_PUBLIC_WEB_URL: http://localhost:3001
+        NUXT_PUBLIC_API_URL: http://localhost:3000/api
+        NUXT_PUBLIC_WEB_URL: http://localhost:3001
     container_name: dripdesk-web
     restart: unless-stopped
     environment:
-      DRIPDESK_PUBLIC_API_URL: http://localhost:3000/api
-      DRIPDESK_PUBLIC_WEB_URL: http://localhost:3001
+      NUXT_PUBLIC_API_URL: http://localhost:3000/api
+      NUXT_PUBLIC_WEB_URL: http://localhost:3001
       PORT: 3001
       HOST: 0.0.0.0
     ports:

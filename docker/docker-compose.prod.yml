@@ -87,6 +87,9 @@ services:
     build:
       context: ..
       dockerfile: docker/web.Dockerfile
+      args:
+        NUXT_PUBLIC_API_URL: https://api.dripdesk.net
+        NUXT_PUBLIC_WEB_URL: https://app.dripdesk.net
     restart: unless-stopped
     env_file:
       - ../.env
@@ -94,8 +97,8 @@ services:
       NODE_ENV: production
       PORT: 3001
       HOST: 0.0.0.0
-      DRIPDESK_PUBLIC_API_URL: https://api.dripdesk.net
-      DRIPDESK_PUBLIC_WEB_URL: https://app.dripdesk.net
+      NUXT_PUBLIC_API_URL: https://api.dripdesk.net
+      NUXT_PUBLIC_WEB_URL: https://app.dripdesk.net
     networks:
       - edge
     depends_on:

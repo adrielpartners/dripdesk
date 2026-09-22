@@ -37,7 +37,8 @@ Run with Postgres, Redis, API, worker, and web available:
 
 - set unique production secrets
 - configure Stripe price IDs and webhook secret
-- set `DRIPDESK_PUBLIC_WEB_URL` and `DRIPDESK_PUBLIC_API_URL` to public HTTPS origins
+- set `DRIPDESK_PUBLIC_WEB_URL` and `DRIPDESK_PUBLIC_API_URL` to public HTTPS origins for the API and worker
+- set `NUXT_PUBLIC_WEB_URL` and `NUXT_PUBLIC_API_URL` to the same public HTTPS origins for the web container
 - leave `DRIPDESK_ENABLE_API_DOCS` unset or false unless API docs should be publicly exposed
 - configure provider credentials per organization
 - verify CORS origin
