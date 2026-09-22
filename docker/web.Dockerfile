@@ -1,5 +1,5 @@
 FROM node:22-alpine
-ARG NUXT_PUBLIC_API_URL=https://api.dripdesk.net
+ARG NUXT_PUBLIC_API_URL=https://api.dripdesk.net/api
 ARG NUXT_PUBLIC_WEB_URL=https://app.dripdesk.net
 WORKDIR /app
 RUN corepack enable

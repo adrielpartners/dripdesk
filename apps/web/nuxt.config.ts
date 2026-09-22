@@ -18,7 +18,7 @@ const config: NuxtConfig = {
     public: {
       // Nuxt only applies runtime overrides from NUXT_PUBLIC_* variables. Keep
       // the DripDesk variables as build-time defaults for local Docker builds.
-      apiUrl: process.env.NUXT_PUBLIC_API_URL ?? process.env.DRIPDESK_PUBLIC_API_URL ?? 'http://localhost:3000',
+      apiUrl: process.env.NUXT_PUBLIC_API_URL ?? process.env.DRIPDESK_PUBLIC_API_URL ?? 'http://localhost:3000/api',
       webUrl: process.env.NUXT_PUBLIC_WEB_URL ?? process.env.DRIPDESK_PUBLIC_WEB_URL ?? 'http://localhost:3001',
     },
   },
