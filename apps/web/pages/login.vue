@@ -43,7 +43,10 @@ const { pending, error } = auth;
 
 async function handleSubmit() {
   const session = await auth.login(email.value, password.value);
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : null;
+  const requestedRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : null;
+  const redirect = requestedRedirect?.startsWith('/') && !requestedRedirect.startsWith('//')
+    ? requestedRedirect
+    : null;
 
   if (redirect) {
     await navigateTo(redirect);

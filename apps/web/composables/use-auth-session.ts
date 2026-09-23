@@ -52,6 +52,19 @@ export function useAuthSession() {
     }
   }
 
+  async function verifySession() {
+    if (!loadStoredSession()?.accessToken) return false;
+
+    try {
+      await apiRequest('/auth/me');
+    } catch {
+      // A 401 clears the saved session in apiRequest. A temporary network
+      // failure does not sign the user out.
+    }
+
+    return Boolean(session.value?.accessToken);
+  }
+
   async function register(params: {
     email: string;
     password: string;
@@ -99,9 +112,14 @@ export function useAuthSession() {
   }
 
   async function logout() {
-    await apiRequest<{ loggedOut: boolean }>('/auth/logout', { method: 'POST' });
+    try {
+      await apiRequest<{ loggedOut: boolean }>('/auth/logout', { method: 'POST' });
+    } catch {
+      // Server revocation is best-effort; local sign-out must still work.
+    }
+
     setSession(null);
-    return navigateTo('/login');
+    if (import.meta.client) window.location.replace('/login');
   }
 
   const currentSession = computed(() => session.value ?? loadStoredSession());
@@ -121,6 +139,8 @@ export function useAuthSession() {
     isAdminUser,
     isRecipient,
     loadStoredSession,
+    clearSession: () => setSession(null),
+    verifySession,
     register,
     login,
     logout,

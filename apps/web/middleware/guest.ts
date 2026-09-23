@@ -1,11 +1,9 @@
-export default defineNuxtRouteMiddleware(() => {
+export default defineNuxtRouteMiddleware(async () => {
   if (import.meta.server) return;
 
   const auth = useAuthSession();
 
-  auth.loadStoredSession();
-
-  if (!auth.isAuthenticated.value) return;
+  if (!(await auth.verifySession())) return;
 
   if (auth.isRecipient.value) return navigateTo('/recipient');
 

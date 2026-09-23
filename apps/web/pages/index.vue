@@ -4,14 +4,12 @@
 
 <script setup lang="ts">
 definePageMeta({
-  middleware: () => {
+  middleware: async () => {
     if (import.meta.server) return;
 
     const auth = useAuthSession();
 
-    auth.loadStoredSession();
-
-    if (!auth.isAuthenticated.value) return navigateTo('/login');
+    if (!(await auth.verifySession())) return navigateTo('/login');
     if (auth.isRecipient.value) return navigateTo('/recipient');
 
     return navigateTo('/admin');
