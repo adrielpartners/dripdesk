@@ -50,6 +50,7 @@
         <thead>
           <tr>
             <th>Name</th>
+            <th>Campaign ID</th>
             <th>Status</th>
             <th>Schedule</th>
             <th>Steps</th>
@@ -59,6 +60,7 @@
         <tbody>
           <tr v-for="campaign in campaigns" :key="campaign.id">
             <td>{{ campaign.name }}</td>
+            <td><AppCopyableText :value="campaign.id" copy-label="campaign ID" /></td>
             <td><AppBadge :tone="campaign.status === 'active' ? 'success' : 'neutral'">{{ campaign.status }}</AppBadge></td>
             <td>{{ campaign.scheduleType }}</td>
             <td>{{ campaign._count?.steps ?? 0 }}</td>

@@ -4,6 +4,7 @@
       <p class="page-header__eyebrow">Settings</p>
       <h1 class="page-header__title">Integrations</h1>
       <p class="page-header__description">Configure delivery providers and subscriber intake.</p>
+      <a href="#subscriber-intake">How to enroll subscribers with a webhook ↓</a>
     </header>
 
     <div v-if="pageError" class="notice notice--error" role="alert">{{ pageError }}</div>
@@ -89,7 +90,7 @@
     </section>
 
     <div v-if="intakeNotice" class="notice" :class="`notice--${intakeNotice.tone}`" role="status">{{ intakeNotice.message }}</div>
-    <AppCard>
+    <AppCard id="subscriber-intake">
       <div class="provider-form">
         <div class="provider-form__header">
           <div>
@@ -98,21 +99,23 @@
           </div>
           <AppBadge :tone="intakeSettings?.configured ? 'success' : 'neutral'">{{ intakeSettings?.configured ? 'Ready' : 'Not set up' }}</AppBadge>
         </div>
-        <div v-if="intakeUrl" class="intake-detail">
-          <strong>POST endpoint</strong>
-          <code>{{ intakeUrl }}</code>
-        </div>
-        <div v-if="intakeKey" class="intake-detail">
-          <strong>Secret key — copy now; it cannot be shown again</strong>
-          <code>{{ intakeKey }}</code>
-        </div>
-        <p>Send the key in the <code>X-DripDesk-Intake-Key</code> header. Use a unique <code>eventId</code> for each signup and resend the same ID on retries. Copy a campaign ID from the end of its campaign-detail URL.</p>
-        <div class="intake-detail">
-          <strong>Example JSON body</strong>
-          <code>{ "eventId": "signup-123", "campaignId": "CAMPAIGN_UUID", "displayName": "Jordan Lee", "email": "jordan@example.com", "consent": true }</code>
-        </div>
+        <ol class="intake-steps">
+          <li>Open <NuxtLink to="/admin/campaigns">Campaigns</NuxtLink>, copy the campaign ID, and make sure the campaign is active with a published step.</li>
+          <li>Generate an intake key below and save it in the sending platform. The key appears only once; if it is lost, rotate it.</li>
+          <li>Configure that platform to POST JSON to this endpoint with the two headers and body shown below.</li>
+          <li>Send one test signup. A successful response returns a person ID and enrollment ID; check People and campaign enrollments. The first message follows the campaign schedule.</li>
+        </ol>
+        <AppCopyableText v-if="intakeUrl" :value="intakeUrl" label="POST endpoint" copy-label="subscriber intake endpoint" />
+        <AppCopyableText v-if="intakeKey" :value="intakeKey" label="Secret key — copy now; it cannot be shown again" copy-label="subscriber intake secret key" />
+        <p v-else-if="intakeSettings?.configured">A key is already configured but cannot be shown again. Use the copy you saved, or rotate it below to make a new one.</p>
         <AppButton type="button" :disabled="intakePending" @click="rotateIntakeKey">{{ intakeSettings?.configured ? 'Rotate secret key' : 'Generate secret key' }}</AppButton>
         <p v-if="intakeSettings?.configured">Rotating immediately invalidates the previous key. Update the sending platform before its next webhook.</p>
+        <div class="intake-detail">
+          <strong>Required request headers</strong>
+          <code>Content-Type: application/json<br>X-DripDesk-Intake-Key: YOUR_INTAKE_KEY</code>
+        </div>
+        <AppCopyableText :value="intakeExample" label="Example request (replace the key, campaign ID, and subscriber data)" copy-label="subscriber intake example request" />
+        <p>Use a distinct <code>eventId</code> for every signup. Reuse that same ID and identical data when retrying a failed request. Set <code>consent</code> to true only when the person agreed to receive messages. Supply at least one of email, phone (E.164 format), or Telegram chat ID.</p>
       </div>
     </AppCard>
   </div>
@@ -183,6 +186,10 @@ const intakePending = ref(false);
 const intakeNotice = ref<{ tone: 'success' | 'error' | 'warning'; message: string } | null>(null);
 const intakeUrl = computed(() => auth.user.value?.organizationId
   ? `${runtime.public.apiUrl.replace(/\/$/, '')}/webhooks/subscribers/${auth.user.value.organizationId}` : '');
+const intakeExample = computed(() => `curl -X POST '${intakeUrl.value || 'https://api.dripdesk.net/api/webhooks/subscribers/ORGANIZATION_ID'}' \\
+  -H 'Content-Type: application/json' \\
+  -H 'X-DripDesk-Intake-Key: YOUR_INTAKE_KEY' \\
+  --data '{"eventId":"signup-123","campaignId":"CAMPAIGN_ID","displayName":"Jordan Lee","email":"jordan@example.com","consent":true}'`);
 let formHydrated = false;
 const pending = ref<ProviderType | ''>('');
 const pageError = ref('');
@@ -466,5 +473,12 @@ function providerLabel(providerType: ProviderType) {
   padding: var(--dd-space-2);
   border: var(--dd-border-width) solid var(--dd-color-border);
   border-radius: var(--dd-radius-md);
+}
+
+.intake-steps {
+  display: grid;
+  gap: var(--dd-space-2);
+  margin: 0;
+  padding-left: var(--dd-space-5);
 }
 </style>

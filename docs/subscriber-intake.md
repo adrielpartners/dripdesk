@@ -6,7 +6,9 @@ The subscriber intake endpoint lets a trusted external platform register a conse
 
 1. In Admin → Integrations → Subscriber intake webhook, generate a secret key. Copy it immediately: only its hash is saved, and the key cannot be retrieved later. Rotation invalidates the previous key.
 2. Copy the POST endpoint shown there into the sending platform. Configure a JSON request with `Content-Type: application/json` and `X-DripDesk-Intake-Key: <secret key>`.
-3. Send a unique `eventId` for each signup and preserve that ID on retries. Supply the ID of an active campaign with at least one published step. The first step must use at least one contact channel supplied in the request.
+3. Copy the campaign ID from the Campaigns list or the saved campaign's detail page. Send a unique `eventId` for each signup and preserve that ID on retries. Supply the ID of an active campaign with at least one published step. The first step must use at least one contact channel supplied in the request.
+
+The Integrations screen includes the endpoint, headers, and a copyable curl example. The key is shown only when first generated or rotated.
 
 Example body:
 

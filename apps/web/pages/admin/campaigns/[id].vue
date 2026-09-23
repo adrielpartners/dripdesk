@@ -4,6 +4,7 @@
       <p class="page-header__eyebrow">Campaigns</p>
       <h1 class="page-header__title">{{ campaign?.name ?? 'Campaign setup' }}</h1>
       <p class="page-header__description">Build a linear sequence of short lessons for direct delivery.</p>
+      <AppCopyableText v-if="campaign" :value="campaign.id" label="Campaign ID for subscriber webhooks" copy-label="campaign ID" />
     </header>
 
     <AppEmptyState v-if="error" title="Campaign error" :description="error" />
