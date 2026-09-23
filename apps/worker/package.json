@@ -7,18 +7,20 @@
     "dev": "ts-node src/main.ts",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "echo \"No worker lint configured yet\"",
-    "test": "ts-node src/scheduling/schedule-rules.test.ts && ts-node src/scheduling/schedule-due-steps.test.ts && ts-node src/messages/message-preparation.test.ts && ts-node src/providers/provider-send.test.ts"
+    "lint": "eslint src",
+    "test": "node --experimental-test-coverage --test --require ts-node/register src/scheduling/schedule-rules.test.ts src/scheduling/schedule-due-steps.test.ts src/messages/message-preparation.test.ts src/providers/provider-send.test.ts"
   },
   "dependencies": {
     "@dripdesk/config": "workspace:*",
     "@dripdesk/database": "workspace:*",
     "@dripdesk/shared": "workspace:*",
     "bullmq": "^5.34.8",
-    "ioredis": "^5.4.2"
+    "ioredis": "^5.4.2",
+    "nodemailer": "^10.0.10"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/nodemailer": "^8.0.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.2"
   }

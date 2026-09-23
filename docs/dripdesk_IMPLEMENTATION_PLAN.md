@@ -1,5 +1,7 @@
 # IMPLEMENTATION_PLAN.md
 
+> Historical snapshot (2026-05-28). The maintained roadmap is [`IMPLEMENTATION_PLAN.md`](../IMPLEMENTATION_PLAN.md); use that file for current status and next steps.
+
 Version: 1.0  
 Project: DripDesk  
 Repository: `dripdesk`  

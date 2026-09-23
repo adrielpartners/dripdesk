@@ -9,6 +9,7 @@ export interface JwtPayload {
   email: string;
   orgId?: string;
   role: string;
+  sessionVersion: number;
 }
 
 @Injectable()
@@ -37,7 +38,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       },
     });
 
-    if (!user) throw new UnauthorizedException();
+    if (!user || payload.sessionVersion !== user.sessionVersion) throw new UnauthorizedException('Session has expired. Please sign in again.');
 
     const primaryMembership =
       user.memberships.find((membership) => membership.organizationId === payload.orgId) ??

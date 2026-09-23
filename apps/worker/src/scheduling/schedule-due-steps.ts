@@ -1,11 +1,12 @@
 import { JOB_NAMES, QUEUE_DEFAULTS, logger, type Channel, type SendMessageJobData } from '@dripdesk/shared';
-import { prisma, type CampaignScheduleType, type PrismaClient } from '@dripdesk/database';
+import { prisma, type PrismaClient } from '@dripdesk/database';
 import type { Prisma } from '@dripdesk/database';
 import type { Job, Queue } from 'bullmq';
 import { isStepDue, type ScheduleConfig } from './schedule-rules';
 
 const MAX_ORGS_PER_CYCLE = 10;
 const MAX_CANDIDATES_PER_ORG = 20;
+let nextOrgOffset = 0;
 
 type DueCandidate = Prisma.EnrollmentStepStateGetPayload<{
   include: {
@@ -27,7 +28,8 @@ export async function scheduleDueSteps(job: Job, queue: Queue, client: PrismaCli
   let dueCount = 0;
   let enqueuedCount = 0;
 
-  for (const orgId of orgIds.slice(0, MAX_ORGS_PER_CYCLE)) {
+  const selectedOrgIds = rotateOrganizations(orgIds, MAX_ORGS_PER_CYCLE);
+  for (const orgId of selectedOrgIds) {
     const candidates = await client.enrollmentStepState.findMany({
       where: {
         status: 'pending',
@@ -115,43 +117,39 @@ export async function scheduleDueSteps(job: Job, queue: Queue, client: PrismaCli
 
   logger.info('Scheduled due steps', {
     jobId: job.id,
-    orgsProcessed: Math.min(orgIds.length, MAX_ORGS_PER_CYCLE),
+    orgsProcessed: selectedOrgIds.length,
     checkedCount,
     dueCount,
     enqueuedCount,
   });
 
-  return { orgsProcessed: Math.min(orgIds.length, MAX_ORGS_PER_CYCLE), checkedCount, dueCount, enqueuedCount };
+  return { orgsProcessed: selectedOrgIds.length, checkedCount, dueCount, enqueuedCount };
 }
 
 /**
  * Get distinct organization IDs that have at least one eligible pending step.
- * This ensures each org gets fair processing time per cycle.
+ * Grouping enrollments avoids loading every pending step-state row into memory.
  */
 async function getEligibleOrgIds(client: PrismaClient) {
-  const rows = await client.enrollmentStepState.findMany({
+  const rows = await client.enrollment.groupBy({
+    by: ['organizationId'],
     where: {
-      status: 'pending',
-      enrollment: {
-        status: 'active',
-        person: { status: 'active' },
-        campaign: { status: 'active' },
-      },
+      status: 'active',
+      person: { status: 'active' },
+      campaign: { status: 'active' },
+      stepStates: { some: { status: 'pending' } },
     },
-    select: {
-      enrollment: {
-        select: { organizationId: true },
-      },
-    },
-    distinct: ['enrollmentId'],
+    orderBy: { organizationId: 'asc' },
   });
+  return rows.map((row) => row.organizationId);
+}
 
-  const orgIdSet = new Set<string>();
-  for (const row of rows) {
-    orgIdSet.add(row.enrollment.organizationId);
-  }
-
-  return Array.from(orgIdSet);
+export function rotateOrganizations(orgIds: string[], limit: number) {
+  if (orgIds.length === 0) return [];
+  const start = nextOrgOffset % orgIds.length;
+  const selected = Array.from({ length: Math.min(limit, orgIds.length) }, (_, index) => orgIds[(start + index) % orgIds.length]);
+  nextOrgOffset = (start + selected.length) % orgIds.length;
+  return selected;
 }
 
 function deliveryChannels(candidate: DueCandidate) {

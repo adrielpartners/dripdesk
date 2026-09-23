@@ -7,7 +7,7 @@
     "dev": "nuxt dev --host 0.0.0.0 --port 3001",
     "build": "nuxt build",
     "typecheck": "nuxt typecheck",
-    "lint": "echo \"No web lint configured yet\"",
+    "lint": "eslint .",
     "test": "echo \"No web tests configured yet\""
   },
   "dependencies": {

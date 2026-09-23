@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import type { PrismaClient } from '@dripdesk/database';
 import type { Job, Queue } from 'bullmq';
-import { scheduleDueSteps } from './schedule-due-steps';
+import { rotateOrganizations, scheduleDueSteps } from './schedule-due-steps';
 
 const candidate = {
   id: 'step-state-id',
@@ -25,14 +25,13 @@ const candidate = {
   campaignStep: { channelOverrides: [], delayDaysOverride: 0 },
 };
 
-let findCount = 0;
 let updateCount = 0;
 const client = {
+  enrollment: {
+    groupBy: async () => [{ organizationId: 'organization-id' }],
+  },
   enrollmentStepState: {
-    findMany: async () => {
-      findCount += 1;
-      return findCount === 1 ? [{ enrollment: { organizationId: 'organization-id' } }] : [candidate];
-    },
+    findMany: async () => [candidate],
     updateMany: async () => {
       updateCount += 1;
       return { count: 1 };
@@ -47,6 +46,12 @@ const queue = {
 } as unknown as Queue;
 
 async function run() {
+  const organizations = Array.from({ length: 11 }, (_, index) => `org-${index}`);
+  const firstCycle = rotateOrganizations(organizations, 10);
+  const secondCycle = rotateOrganizations(organizations, 10);
+  assert.equal(firstCycle.length, 10);
+  assert.equal(secondCycle.length, 10);
+  assert.equal(new Set([...firstCycle, ...secondCycle]).size, 11, 'all eligible organizations must eventually get a turn');
   await assert.rejects(
     scheduleDueSteps({ id: 'schedule-test' } as Job, queue, client),
     /Redis unavailable/,

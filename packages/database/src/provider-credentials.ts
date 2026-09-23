@@ -125,7 +125,7 @@ export class ProviderCredentialStore {
     accountSid: string,
     toNumber?: string,
   ): Promise<{ organizationId: string; authToken: string } | null> {
-    const credential = await this.client.providerCredential.findFirst({
+    const credentials = await this.client.providerCredential.findMany({
       where: {
         providerType: 'twilio',
         twilioAccountSid: accountSid,
@@ -136,17 +136,20 @@ export class ProviderCredentialStore {
       },
     });
 
-    if (!credential) return null;
-
-    let config: TwilioConfig;
-    try {
-      config = decryptJson<TwilioConfig>(credential.encryptedConfig, this.encryptionKey);
-    } catch {
-      return null;
+    let match: { organizationId: string; authToken: string } | null = null;
+    for (const credential of credentials) {
+      let config: TwilioConfig;
+      try {
+        config = decryptJson<TwilioConfig>(credential.encryptedConfig, this.encryptionKey);
+      } catch {
+        continue;
+      }
+      if (toNumber && config.fromNumber !== toNumber) continue;
+      // A shared SID/number cannot identify a tenant unambiguously; reject it.
+      if (match) return null;
+      match = { organizationId: credential.organizationId, authToken: config.authToken };
     }
-
-    if (toNumber && config.fromNumber !== toNumber) return null;
-    return { organizationId: credential.organizationId, authToken: config.authToken };
+    return match;
   }
 
   async markTested(organizationId: string, providerType: ProviderType, ok: boolean, error?: ProviderDiagnostic | string) {
@@ -187,6 +190,7 @@ export function validateProviderConfig(providerType: ProviderType, config: Provi
   if (providerType === 'telegram') {
     const value = config as TelegramConfig;
     if (!value.botToken) return { ok: false, error: 'Telegram bot token is required' };
+    if (!value.webhookSecret) return { ok: false, error: 'Telegram webhook secret is required to authenticate incoming replies' };
     return { ok: true };
   }
 
@@ -252,6 +256,8 @@ export function sanitizeProviderDetail(value: string, secrets: string[] = []): s
     if (secret && secret.length >= 4) safe = safe.split(secret).join('[redacted]');
   }
   return safe
+    // Control characters are intentionally stripped from provider-supplied diagnostics.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\r\n\x00-\x1f\x7f]+/g, ' ')
     .replace(/https?:\/\/\S+/gi, '[link redacted]')
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, '[email redacted]')

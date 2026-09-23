@@ -1,9 +1,10 @@
 # DECISIONS.md
 
-Version: 1.1  
+Version: 1.2
+
 Project: DripDesk  
 Repository: `dripdesk`  
-Last Updated: 2026-09-22
+Last Updated: 2026-09-23
 
 ---
 
@@ -831,3 +832,59 @@ External platforms need a simple setup that does not expose an admin JWT. Tenant
 ## Date Adopted
 
 2026-09-22
+
+## Reversibility
+
+Moderate. A more granular credential model could replace the single organization key.
+
+---
+
+# Decision 029: Use a maintained SMTP transport and require authenticated inbound callbacks
+
+## Decision
+
+Use Nodemailer in the worker for SMTP protocol handling and plain-text MIME messages rather than maintaining a raw-socket SMTP client. Reject line breaks in sender/recipient/subject fields. Require a Telegram webhook secret for inbound replies and reject ambiguous Twilio SID/number tenant matches.
+
+## Rationale
+
+SMTP framing, dot-stuffing, header encoding, and TLS have security-sensitive edge cases. Provider callbacks can advance campaigns, so missing or ambiguous authentication must fail closed.
+
+## Tradeoffs
+
+- Adds one maintained runtime dependency and requires package/security review on upgrades.
+- Existing Telegram configurations without a webhook secret must be updated before inbound replies work.
+- Shared Twilio account/number configurations cannot receive callbacks until tenant ownership is unambiguous.
+
+## Date Adopted
+
+2026-09-23
+
+## Reversibility
+
+Moderate. A different maintained mail transport or explicit provider API could replace Nodemailer later.
+
+---
+
+# Decision 030: Revoke bearer sessions by user version and gate image publishing on checks
+
+## Decision
+
+Store a `session_version` on users, embed it in JWTs, and reject tokens whose version no longer matches. Logout and password reset increment the version, revoking all of that user's outstanding tokens. Run real ESLint, typecheck, and reported/coverage-enabled Node tests before publishing release images.
+
+## Rationale
+
+A local-only logout and password reset left seven-day bearer tokens usable. A user-level version is a small durable revocation mechanism without a token blacklist. CI should block publishing images when code quality checks fail.
+
+## Tradeoffs
+
+- Logout ends sessions on every device, not just the current browser.
+- Existing tokens require re-login after the migration; the migration must precede the new API image.
+- The Node test runner reports coverage of exercised files, but additional integration and live provider tests are still needed.
+
+## Date Adopted
+
+2026-09-23
+
+## Reversibility
+
+Moderate. Per-device sessions or HttpOnly-cookie auth can supersede user-wide versioning later.

@@ -55,4 +55,4 @@ The admin dashboard at `/admin` shows:
 - empty account guidance
 - no-activity guidance
 
-Recipient dashboard behavior remains deferred to Phase 18.
+The recipient dashboard was added in Phase 18; its separate behavior is documented in `docs/recipient-dashboard.md`.

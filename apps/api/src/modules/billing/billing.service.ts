@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BILLING_PLAN_ACTIVE_CONTACT_LIMITS, BILLING_PLANS, ACTIVE_CONTACT_WINDOW_DAYS } from '@dripdesk/shared';
 import { BillingStatus } from '@prisma/client';
@@ -82,7 +82,6 @@ export class BillingService {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: subscription.stripeCustomerId ?? undefined,
-      customer_email: subscription.stripeCustomerId ? undefined : undefined,
       client_reference_id: tenant.organizationId,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${this.config.get<string>('dripdesk.publicWebUrl', 'http://localhost:3001')}/admin/billing?checkout=success`,

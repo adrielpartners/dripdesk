@@ -8,6 +8,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { CurrentTenant } from '../../common/decorators/current-tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import type { AuthenticatedUser } from '../../common/tenant/tenant-context';
 import { ok } from '../../common/api-response';
 
 @ApiTags('users')
@@ -28,7 +29,7 @@ export class UsersController {
   @Patch('me')
   @ApiOperation({ summary: 'Update current user profile' })
   async updateProfile(
-    @CurrentUser() user: any,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() body: { firstName?: string; lastName?: string },
   ) {
     return ok(await this.usersService.update(user.id, body));

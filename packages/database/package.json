@@ -5,7 +5,8 @@
   "scripts": {
     "build": "pnpm generate && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "ts-node src/progress.service.test.ts && ts-node src/provider-credentials.test.ts",
+    "lint": "eslint src prisma/seed.ts",
+    "test": "node --experimental-test-coverage --test --require ts-node/register src/progress.service.test.ts src/provider-credentials.test.ts",
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",

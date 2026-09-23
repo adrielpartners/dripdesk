@@ -1,5 +1,7 @@
 # ARCHITECTURE.md
 
+> Historical snapshot (2026-05-28). The maintained architecture is [`ARCHITECTURE.md`](../ARCHITECTURE.md); use that file for current implementation and deployment facts.
+
 Version: 1.0  
 Project: DripDesk  
 Repository: `dripdesk`  

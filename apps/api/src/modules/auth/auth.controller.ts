@@ -16,6 +16,7 @@ import { CurrentTenant } from '../../common/decorators/current-tenant.decorator'
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { ok } from '../../common/api-response';
+import { AuthenticatedUser } from '../../common/tenant/tenant-context';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -54,15 +55,15 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current token session' })
-  logout() {
-    return ok({ loggedOut: true });
+  async logout(@CurrentUser() user: AuthenticatedUser) {
+    return ok(await this.authService.logout(user.id));
   }
 
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current authenticated user' })
-  me(@CurrentUser() user: any) {
+  me(@CurrentUser() user: AuthenticatedUser) {
     return ok({
       id: user.id,
       email: user.email,
@@ -79,7 +80,7 @@ export class AuthController {
   @Roles('owner')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Invite an admin to the organization' })
-  async invite(@CurrentTenant() tenant: TenantContext, @CurrentUser() user: any, @Body() dto: InviteAdminDto) {
+  async invite(@CurrentTenant() tenant: TenantContext, @CurrentUser() user: AuthenticatedUser, @Body() dto: InviteAdminDto) {
     return ok(await this.authService.inviteAdmin(tenant, user.id, dto));
   }
 

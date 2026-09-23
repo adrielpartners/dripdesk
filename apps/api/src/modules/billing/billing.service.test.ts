@@ -1,5 +1,7 @@
 import assert from 'assert';
 import { BillingService } from './billing.service';
+import type { ConfigService } from '@nestjs/config';
+import type { PrismaService } from '../../prisma/prisma.service';
 
 // Minimal mock config — no Stripe keys, free-tier only
 const mockConfig = {
@@ -10,9 +12,9 @@ const mockConfig = {
     if (key === 'dripdesk.stripeProPriceId') return '';
     return fallback ?? '';
   },
-} as any;
+} as unknown as ConfigService;
 
-const service = new BillingService({} as any, mockConfig);
+const service = new BillingService({} as PrismaService, mockConfig);
 
 // --- getPlans ---
 const plans = service.getPlans();

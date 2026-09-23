@@ -11,6 +11,7 @@ import { PersonsService } from './persons.service';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PersonChannelDto } from './dto/person-channel.dto';
+import { UpdatePersonChannelDto } from './dto/update-person-channel.dto';
 
 @ApiTags('persons')
 @Controller('persons')
@@ -84,9 +85,8 @@ export class PersonsController {
     @CurrentTenant() tenant: TenantContext,
     @Param('id') personId: string,
     @Param('channelId') channelId: string,
-    @Body() dto: Partial<PersonChannelDto>,
+    @Body() dto: UpdatePersonChannelDto,
   ) {
     return ok(await this.personsService.updateChannel(tenant, personId, channelId, dto));
   }
 }
-

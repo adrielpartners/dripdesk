@@ -1,5 +1,7 @@
 # DECISIONS.md
 
+> Historical snapshot. The maintained decision log is [`DECISIONS.md`](../DECISIONS.md).
+
 Version: 1.0  
 Project: DripDesk  
 Repository: `dripdesk`  

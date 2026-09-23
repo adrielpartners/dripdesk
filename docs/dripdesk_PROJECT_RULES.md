@@ -1,5 +1,7 @@
 # PROJECT_RULES.md
 
+> Historical snapshot. The maintained repository rules are [`PROJECT_RULES.md`](../PROJECT_RULES.md).
+
 Version: 1.0  
 Project: DripDesk  
 Repository: `dripdesk`  

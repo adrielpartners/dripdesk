@@ -4,7 +4,7 @@ Version: 1.0
 Project: DripDesk  
 Repository: `dripdesk`  
 System Type: Multi-Tenant SaaS Application  
-Last Updated: 2026-09-22
+Last Updated: 2026-09-23
 
 ---
 
@@ -430,7 +430,7 @@ Fields include:
 - delay override if any
 - channel override if any
 
-Phase 9 implementation stores steps in `campaign_steps`. Steps are linear only and ordered by `step_order`; reordering requires the complete active step list for the campaign. Step creation supports draft and published states. Published steps require a title and at least one content variant. Branching, enrollment state, message delivery, and scheduler behavior remain later-phase work.
+Steps are stored in `campaign_steps`. They are linear and ordered by `step_order`; reordering requires the complete active step list for the campaign. Step creation supports draft and published states. Published steps require a title and at least one content variant. Enrollment state, scheduling, and delivery are implemented in the services described below. Branching remains deferred.
 
 ## Enrollment
 
@@ -438,11 +438,11 @@ Connects a Person to a Campaign.
 
 Default behavior:
 
-- recipients start at Step 1 when enrolled.
+- recipients start at the first published step when enrolled.
 
 Phase 10 implementation stores enrollments in `enrollments`. Enrollment records carry `organization_id`, `campaign_id`, `person_id`, status, `current_step_order`, and enrollment lifecycle timestamps. Admin enrollment APIs are tenant-scoped and require owner/admin membership. Duplicate person/campaign enrollments are handled by a database uniqueness constraint and service-level conflict responses.
 
-Active contact enforcement is introduced in Phase 10 using the documented active contact definition: a Person with at least one active enrollment created within the last 30 days. Until the billing phase adds persisted subscription plans, the API reports and enforces the Free plan limit of 10 active contacts.
+Active contact enforcement uses the documented active contact definition: a Person with at least one active enrollment created within the last 30 days. Billing now persists subscription state; organizations without a paid subscription use the Free plan limit of 10 active contacts.
 
 ## Enrollment Step State
 
@@ -450,13 +450,13 @@ Tracks per-recipient progress for each campaign step.
 
 States/events include sent, delivered, opened if available, clicked, replied, completed, failed, skipped, and unsubscribed where relevant.
 
-Phase 10 initializes `enrollment_step_states` for the campaign's currently published steps at enrollment time. Phase 14 evaluates completion through `ProgressService`, updates completed step states, advances active enrollments to the next published step, and marks the enrollment completed when the final step is complete. Provider delivery and reply ingestion remain later-phase work.
+Enrollment initializes `enrollment_step_states` for the campaign's currently published steps. `ProgressService` evaluates completion, updates completed step states, advances active enrollments to the next published step, and marks the enrollment completed after the final step. Worker provider sending and API reply ingestion are implemented; live end-to-end delivery remains a release verification item.
 
 ## Message Outbox
 
 Represents queued delivery work for a specific enrollment, step, person channel, and provider.
 
-Phase 13 implementation stores prepared outbound messages in `message_outbox`. Each record is tenant-scoped and tied to one enrollment, campaign step, person, person channel, and channel type. The outbox prevents duplicate preparation for the same enrollment/step/channel and stores the channel-selected, merge-tagged, link-rewritten message body. Provider transmission remains later-phase work.
+Prepared outbound messages are stored in `message_outbox`. Each record is tenant-scoped and tied to one enrollment, campaign step, person, person channel, and channel type. The outbox prevents duplicate preparation for the same enrollment/step/channel and stores the channel-selected, merge-tagged, link-rewritten message body. The worker transmits through configured providers and records the result.
 
 ## Message Event
 
@@ -474,7 +474,7 @@ Events include:
 - completed
 - unsubscribed
 
-Phase 13 records `prepared` events when a worker prepares a message and `clicked` events when a recipient follows a tracked link. Provider events such as sent, delivered, failed, opened, and replied remain later-phase work.
+The worker records `prepared` and send-result events; tracked links record `clicked`. Supported provider callbacks record delivery, failure, and reply events where the provider supplies them. An `opened` event type exists, but open tracking is not a verified v1 delivery signal.
 
 ## Tracked Link
 
@@ -946,7 +946,7 @@ Purpose: Telegram message sending, recipient chat linking, and reply webhooks.
 
 Never log the Telegram bot token.
 
-Phase 15 uses organization Telegram bot credentials from `provider_credentials`. Recipient Telegram linking is represented by the person channel address containing the Telegram chat id. Telegram webhook shared-secret validation is supported when configured.
+Phase 15 uses organization Telegram bot credentials from `provider_credentials`. Recipient Telegram linking is represented by the person channel address containing the Telegram chat id. An organization webhook secret is required for inbound Telegram callbacks; missing or invalid secrets are rejected.
 
 ## SMTP
 
@@ -961,7 +961,7 @@ Supported configuration:
 
 Never log SMTP passwords.
 
-Phase 15 uses organization SMTP credentials from `provider_credentials` and supports Brevo, SendGrid, Mailgun, and generic SMTP presets in the admin setup UI.
+Phase 15 uses organization SMTP credentials from `provider_credentials` and supports Brevo, SendGrid, Mailgun, and generic SMTP presets in the admin setup UI. The worker now uses Nodemailer for SMTP and sends a plain-text MIME body; the custom raw-socket SMTP client was removed after security review.
 
 ## Reverse Proxy
 
@@ -1168,6 +1168,8 @@ Phase 20 adds Dockerfiles for web, API, and worker, plus local and production-st
 
 Production workers additionally attach to a dedicated outbound bridge network for provider DNS and connections, with no published ports. Postgres and Redis remain on the internal-only network.
 
+The current deployment uses `docker/docker-compose.hostinger.yml` on a Hostinger VPS. Traefik serves `app.dripdesk.net` and `api.dripdesk.net`; GitHub Actions publishes web/API/worker images to GHCR on pushes to `main`. Database migrations are applied separately before containers are refreshed. Local Docker/Mailpit campaign delivery has been exercised; production subscriber-intake-to-campaign delivery still needs an end-to-end check. See `docs/deployment.md` and `docs/release-checklist.md`.
+
 ---
 
 # 20. Environment Configuration
@@ -1305,7 +1307,6 @@ These are intentionally deferred unless the user decides otherwise:
 
 - exact UI component library, if any
 - exact charting library
-- exact production domain names
 - whether email verification is mandatory in v1
 - how permanent deletion is implemented after deletion request
 - whether provider webhooks are processed inline or queued after validation

@@ -2,6 +2,8 @@
 
 Phase 9 adds the first tenant-owned campaign builder data.
 
+This page records the Phase 9 builder scope. Enrollment, scheduling, delivery, tracking, progress, and recipient views were implemented later; see `docs/enrollments-and-active-contacts.md`, `docs/scheduling-engine.md`, `docs/provider-integrations.md`, and `docs/recipient-dashboard.md`.
+
 ## Database
 
 Tables:
@@ -77,6 +79,6 @@ The UI supports listing campaigns, creating a campaign, editing setup fields, ad
 
 Advanced mode reveals reply-required phrase fields. There is no branching or visual automation builder in Phase 9.
 
-## Deferred
+## Still deferred
 
-Campaign enrollment, active contact billing, due-step scheduling, delivery, tracking, replies, completion evaluation, and recipient campaign views remain later-phase work.
+Branching and a visual automation builder are not part of v1. Production intake-to-campaign delivery remains an open release verification check, not an unimplemented feature.

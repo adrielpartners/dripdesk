@@ -2,6 +2,8 @@
 
 Phase 10 connects people to campaigns and introduces active contact limit enforcement.
 
+This page records the Phase 10 foundation. Scheduling, provider delivery, progress evaluation, recipient views, and persisted Stripe billing were added later. See the corresponding feature docs and `docs/release-checklist.md` for unverified production flows.
+
 ## Database
 
 Tables:
@@ -18,7 +20,7 @@ Tables:
 - `current_step_order`, defaulting to `1`
 - enrollment, pause, removal, and completion timestamps
 
-`enrollment_step_states` stores per-enrollment progress records for campaign steps. Phase 10 initializes one state per currently published campaign step when a person is enrolled. Scheduler, delivery, tracking, reply handling, and completion updates remain later-phase work.
+`enrollment_step_states` stores per-enrollment progress records for campaign steps. Enrollment initializes one state per currently published campaign step. The scheduler, worker, tracking, reply handling, and completion updates were implemented in later phases.
 
 Every enrollment query must include organization context. Campaign and person enrollment lists are scoped through the same `organization_id`.
 
@@ -30,7 +32,7 @@ Active contact definition:
 A Person enrolled in at least one campaign in the last 30 days.
 ```
 
-Phase 10 enforces the Free plan default limit of 10 active contacts. Persisted subscription plan data and Stripe billing remain later-phase work.
+The Free plan default limit is 10 active contacts. Persisted subscription plan data and Stripe billing are now implemented; see `docs/billing.md`.
 
 ## API
 
@@ -72,6 +74,6 @@ Campaign detail supports adding a person to a campaign, listing campaign enrollm
 
 Person detail supports adding the person to an active campaign and listing that person's enrollments.
 
-## Deferred
+## Current verification gap
 
-Campaign scheduling, message delivery, due-step detection, active contact paid-plan storage, Stripe subscription enforcement, recipient campaign views, progress advancement, click/reply completion rules, and analytics remain later-phase work.
+The local campaign smoke test covers enrollment, queue delivery to Mailpit, and completion. Production subscriber intake through external email/SMS delivery and later scheduled steps remains to be verified; see `docs/release-checklist.md`.

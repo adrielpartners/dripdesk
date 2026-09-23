@@ -32,7 +32,7 @@ export async function apiRequest<T>(path: string, options: Parameters<typeof $fe
       ignoreResponseError: true,
     });
   } catch (error) {
-    throw new Error(getApiErrorMessage(error));
+    throw new Error(getApiErrorMessage(error), { cause: error });
   }
 
   if (!response.ok || response.data === undefined) {

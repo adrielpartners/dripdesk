@@ -92,8 +92,8 @@ export class WebhooksService {
   async handleTelegram(orgId: string, providedSecret: string | undefined, body: TelegramUpdate) {
     const config = await this.credentials.getConfig<TelegramConfig>(orgId, 'telegram');
 
-    if (config?.webhookSecret && !verifySharedSecret(providedSecret, config.webhookSecret)) {
-      return { received: false, resolved: false };
+    if (!config?.webhookSecret || !verifySharedSecret(providedSecret, config.webhookSecret)) {
+      throw new ForbiddenException('Telegram webhook secret is invalid or not configured');
     }
 
     const message = body.message;
@@ -187,9 +187,9 @@ export class WebhooksService {
     webhookType: 'status' | 'reply',
   ) {
     const accountSid = body.AccountSid;
-    const toNumber = body.To;
+    const sendingNumber = webhookType === 'status' ? body.From : body.To;
     if (!accountSid) return null;
-    const credential = await this.credentials.findTwilioWebhookCredential(accountSid, toNumber);
+    const credential = await this.credentials.findTwilioWebhookCredential(accountSid, sendingNumber);
     if (!credential) return null;
 
     if (!verifyTwilioSignature(signature, this.twilioWebhookUrl(webhookType), body, credential.authToken)) {

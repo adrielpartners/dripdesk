@@ -59,6 +59,8 @@ The smoke test creates a new organization, a two-step email campaign, and one re
 
 `docker/docker-compose.prod.yml` is a production-style example. It keeps Postgres and Redis on an internal Docker network and exposes only web/API through an external `edge` network intended for a reverse proxy such as Traefik.
 
+The current Hostinger deployment uses `docker/docker-compose.hostinger.yml` and prebuilt GHCR images; see `docs/deployment.md` for its release and migration notes. The example below is not the live deployment procedure.
+
 Before using it:
 
 1. Create the external Docker network used by Traefik:

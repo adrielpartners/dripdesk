@@ -2,10 +2,12 @@ import assert from 'assert';
 import { BadRequestException } from '@nestjs/common';
 import { CampaignsService } from './campaigns.service';
 import { CampaignsRepository } from './campaigns.repository';
+import type { TenantContext } from '../../common/tenant/tenant-context';
+import type { CreateCampaignDto } from './dto/create-campaign.dto';
 
 // Mock repository — just the methods we need
 class MockRepo {
-  findManyForTenant(_tenant: any, page: number, limit: number) {
+  findManyForTenant(_tenant: TenantContext, page: number, limit: number) {
     return Promise.resolve({
       data: [],
       total: 0,
@@ -17,42 +19,43 @@ class MockRepo {
   findByIdForTenant() {
     return Promise.resolve(null);
   }
-  createForTenant(_tenant: any, dto: any) {
+  createForTenant(_tenant: TenantContext, dto: CreateCampaignDto) {
     return Promise.resolve({ id: 'new-id', ...dto, status: 'draft' });
   }
 }
 
 const repo = new MockRepo() as unknown as CampaignsRepository;
 const service = new CampaignsService(repo);
+const tenant = { organizationId: 'org-1', userId: 'user-1', membershipRole: 'owner' } as TenantContext;
 
 async function run() {
   // --- findAll pagination clamping ---
-  const result1 = await service.findAll({ organizationId: 'org-1' } as any, 1, 20);
+  const result1 = await service.findAll(tenant, 1, 20);
   assert.strictEqual(result1.page, 1);
   assert.strictEqual(result1.limit, 20);
 
-  const result2 = await service.findAll({ organizationId: 'org-1' } as any, 0, 0);
+  const result2 = await service.findAll(tenant, 0, 0);
   assert.strictEqual(result2.page, 1, 'page 0 clamped to 1');
 
-  const result3 = await service.findAll({ organizationId: 'org-1' } as any, 999, 999);
+  const result3 = await service.findAll(tenant, 999, 999);
   assert.strictEqual(result3.limit, 100, 'limit 999 clamped to 100');
 
   // --- create validates channels ---
   try {
     await service.create(
-      { organizationId: 'org-1' } as any,
-      { name: 'Test', defaultChannels: [] } as any,
+      tenant,
+      { name: 'Test', defaultChannels: [] },
     );
     assert.fail('should have thrown for empty channels');
-  } catch (err: any) {
+  } catch (err: unknown) {
     assert(err instanceof BadRequestException, 'empty channels throws BadRequestException');
-    assert((err.message as string).includes('At least one'), 'empty channels message');
+    assert(err.message.includes('At least one'), 'empty channels message');
   }
 
   // --- create with valid data ---
-  const created: any = await service.create(
-    { organizationId: 'org-1' } as any,
-    { name: '  My Campaign  ', defaultChannels: ['sms'] } as any,
+  const created = await service.create(
+    tenant,
+    { name: '  My Campaign  ', defaultChannels: ['sms'] },
   );
   assert.strictEqual(created.name, 'My Campaign', 'name is trimmed');
 

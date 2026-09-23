@@ -1,4 +1,5 @@
-import { IsArray, IsIn, IsNotEmpty, IsObject, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsNotEmpty, IsObject, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export type CampaignScheduleType =
@@ -10,9 +11,22 @@ export type CampaignScheduleType =
 export type CampaignProgressRule = 'time_based' | 'link_click_required' | 'reply_required';
 export type CampaignMode = 'standard' | 'advanced';
 export type CampaignChannel = 'sms' | 'telegram' | 'email';
-export interface CampaignScheduleConfig {
+export class CampaignScheduleConfig {
+  @IsOptional()
+  @IsString()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: 'sendTime must be a 24-hour HH:mm time' })
   sendTime?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(365)
   intervalDays?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsIn([0, 1, 2, 3, 4, 5, 6], { each: true })
   daysOfWeek?: number[];
 }
 
@@ -36,6 +50,8 @@ export class CreateCampaignDto {
   @ApiPropertyOptional({ example: { sendTime: '09:00', intervalDays: 2, daysOfWeek: [1, 3, 5] } })
   @IsOptional()
   @IsObject()
+  @ValidateNested()
+  @Type(() => CampaignScheduleConfig)
   scheduleConfig?: CampaignScheduleConfig;
 
   @ApiPropertyOptional({ enum: ['time_based', 'link_click_required', 'reply_required'] })

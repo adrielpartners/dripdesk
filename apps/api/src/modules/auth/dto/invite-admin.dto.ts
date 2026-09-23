@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsIn, IsNotEmpty, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class InviteAdminDto {
@@ -9,6 +9,6 @@ export class InviteAdminDto {
 
   @ApiPropertyOptional({ example: 'admin' })
   @IsOptional()
-  @IsString()
-  role?: string;
+  @IsIn(['admin'])
+  role?: 'admin';
 }

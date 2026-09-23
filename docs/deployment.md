@@ -1,6 +1,6 @@
 # Deployment
 
-Phase 20 adds Dockerfiles and Compose examples for local and production-style deployment.
+DripDesk has local and production-style Compose examples, plus a Hostinger-specific Compose file used by the current deployment. Last updated: 2026-09-22.
 
 ## Dockerfiles
 
@@ -22,7 +22,7 @@ The API and worker images generate Prisma Client during build.
 - Postgres
 - Redis
 
-Postgres and Redis expose local ports for development.
+Postgres and Redis expose loopback-only ports for development. The local stack also includes Mailpit for SMTP campaign testing; see `README.md` for the smoke-test command.
 
 ## Production-Style Compose
 
@@ -39,6 +39,16 @@ Production assumptions:
 - database migrations run before serving traffic.
 - Postgres has durable volume backups.
 - Redis is not publicly exposed.
+
+## Current Hostinger Deployment
+
+`docker/docker-compose.hostinger.yml` is the deployed layout on the Hostinger VPS under `/opt/dripdesk-release`. It uses prebuilt `ghcr.io/adrielpartners/dripdesk-{api,worker,web}:latest` images. Traefik routes `app.dripdesk.net` to web and `api.dripdesk.net` to API. Postgres and Redis use private Docker networking; the worker has outbound network access but no published port. The VPS `.env` and database volume are production state and must be preserved.
+
+Pushing to `main` triggers `.github/workflows/docker-build.yml`. Lint, typecheck, and tests must pass before it builds and publishes the three images to GHCR. That is an image-publish step, **not** a complete deployment: the VPS must pull the new images and recreate the services. Apply any new database migration before replacing API/worker containers. A documentation-only push will also trigger checks and image builds under the current workflow.
+
+For a schema release, first confirm the migration files and backup decision, then run Prisma `migrate deploy` against the production database from a one-off API image/container using the VPS environment, and only then refresh services with the new images. Do not use `prisma migrate dev` in production. Verify API health and the relevant end-to-end flow afterward. Use `docker compose -p dripdesk --env-file .env -f docker/docker-compose.hostinger.yml` from `/opt/dripdesk-release`; omitting `-p dripdesk` selects a different project because the Compose file is inside `docker/`. On 2026-09-22, the subscriber-intake migration required a temporary `apk add --no-cache openssl` because the then-current API image lacked OpenSSL. The API and worker Dockerfiles now install OpenSSL and copy Prisma's native query engine to a `.node` filename. Verify the release image can run `prisma -v` and `prisma migrate deploy` before applying a migration. Do not assume a newly pushed image has been pulled or a migration applied.
+
+The production intake endpoint and one-time key contract are documented in `docs/subscriber-intake.md`. The production campaign intake-to-delivery path is still awaiting a full smoke test; see `docs/release-checklist.md`.
 
 ## Health
 

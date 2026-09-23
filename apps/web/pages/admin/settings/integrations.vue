@@ -56,7 +56,7 @@
 
           <template v-else-if="provider.type === 'telegram'">
             <AppInput v-model="telegram.botToken" label="Bot token" :hint="savedFieldHint('telegram', 'botToken')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
-            <AppInput v-model="telegram.webhookSecret" label="Webhook secret" :hint="savedFieldHint('telegram', 'webhookSecret')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
+            <AppInput v-model="telegram.webhookSecret" label="Webhook secret (required for replies)" :hint="savedFieldHint('telegram', 'webhookSecret')" placeholder="Leave blank to keep saved" type="password" autocomplete="new-password" />
           </template>
 
           <template v-else>

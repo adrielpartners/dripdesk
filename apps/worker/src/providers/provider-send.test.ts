@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import net from 'node:net';
 import { ProviderCredentialStore, parseProviderTestFailure, type ProviderDiagnostic } from '@dripdesk/database';
-import { sendProviderTest } from './provider-send';
+import { sendEmail, sendProviderTest } from './provider-send';
 
 const originalGetConfig = ProviderCredentialStore.prototype.getConfig;
 const originalMarkTested = ProviderCredentialStore.prototype.markTested;
@@ -10,6 +10,7 @@ const requests: Array<{ url: string; body: string }> = [];
 const marks: Array<{ providerType: string; ok: boolean; error?: ProviderDiagnostic | string }> = [];
 let smtpPort = 0;
 let smtpRecipient = '';
+let smtpData = '';
 let smtpRejectRecipient = false;
 let twilioFailure: 'none' | 'http' | 'network' = 'none';
 
@@ -68,6 +69,7 @@ async function run() {
       buffer += chunk;
       if (receivingData) {
         if (buffer.includes('\r\n.\r\n')) {
+          smtpData = buffer.slice(0, buffer.indexOf('\r\n.\r\n'));
           receivingData = false;
           buffer = '';
           socket.write('250 accepted\r\n');
@@ -95,6 +97,20 @@ async function run() {
     assert.deepEqual(await sendProviderTest({ organizationId: 'organization-1', providerType: 'smtp', recipient: 'recipient@example.com' }), { sent: true });
     assert.equal(smtpRecipient, 'RCPT TO:<recipient@example.com>');
     assert.deepEqual(marks[2], { providerType: 'smtp', ok: true, error: undefined });
+    assert.match(smtpData, /Content-Type: text\/plain; charset=utf-8/i);
+    await sendEmail(
+      { host: '127.0.0.1', port: smtpPort, fromEmail: 'sender@example.com', secure: false },
+      'recipient@example.com',
+      'A safe subject',
+      'First line\n.dot line\nLast line',
+    );
+    assert.match(smtpData, /\r\n\.\.dot line\r\n/, 'SMTP DATA must dot-stuff lines beginning with a period');
+    await assert.rejects(sendEmail(
+      { host: '127.0.0.1', port: smtpPort, fromEmail: 'sender@example.com', secure: false },
+      'recipient@example.com',
+      'Hello\r\nBcc: attacker@example.com',
+      'Message body',
+    ));
     smtpRejectRecipient = true;
     await assert.rejects(sendProviderTest({ organizationId: 'organization-1', providerType: 'smtp', recipient: 'recipient@example.com' }),
       (error: Error) => {

@@ -1,4 +1,4 @@
-import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsArray, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateStepDto {
@@ -30,6 +30,8 @@ export class CreateStepDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @MaxLength(998)
+  @Matches(/^[^\r\n]*$/, { message: 'Email subject must be a single line' })
   emailSubject?: string;
 
   @ApiPropertyOptional()

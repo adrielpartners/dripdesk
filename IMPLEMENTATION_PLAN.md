@@ -1,10 +1,11 @@
 # IMPLEMENTATION_PLAN.md
 
-Version: 1.0  
+Version: 1.1
+
 Project: DripDesk  
 Repository: `dripdesk`  
 System Type: Multi-Tenant SaaS Application  
-Last Updated: 2026-05-28
+Last Updated: 2026-09-23
 
 ---
 
@@ -13,6 +14,12 @@ Last Updated: 2026-05-28
 This file turns the DripDesk architecture into an ordered build plan.
 
 Use this as the working roadmap for AI agents and developers. It is not permanent doctrine. Update it as work is completed, priorities change, or implementation details become clearer.
+
+## Current status (2026-09-22)
+
+The core feature phases are implemented, though some older verification boxes remain open. The Nuxt app, NestJS API, worker, PostgreSQL, and Redis run in Docker on the Hostinger VPS; GitHub Actions builds and publishes images on pushes to `main`. Local Docker/Mailpit smoke testing has created a campaign, enrolled a contact, sent two messages through the queue, and completed the enrollment. Organization-scoped subscriber intake is implemented with a one-time key, consent requirement, and durable event-ID deduplication. The live “3-Day Test” campaign is active with three published steps and email/SMS channels; provider test jobs have been accepted by SMTP and Twilio. An actual production subscriber-intake-to-campaign-delivery test has **not** been completed.
+
+The next work is Phase 22 live end-to-end verification, followed by deployment hardening and Phase 21 dependency/security triage. Earlier phase notes below describe their state *at the time of implementation*; statements that Docker or database services were unavailable are historical, not current blockers.
 
 Before working on any phase, read:
 
@@ -218,7 +225,7 @@ DRIPDESK_WORKER_CONCURRENCY
 
 ## Verification
 
-- [ ] API starts with local config.
+- [x] API starts with local config (local Docker smoke test).
 - [x] Worker starts with local config.
 - [x] Missing production secrets fail clearly.
 - [x] `.env.example` contains no real secrets.
@@ -228,7 +235,7 @@ DRIPDESK_WORKER_CONCURRENCY
 - Completed on 2026-05-28.
 - Environment configuration now uses canonical `DRIPDESK_*` names through `packages/config`.
 - Legacy names are accepted only as a transition fallback inside the shared config reader.
-- API startup verification remains blocked by pre-existing API/Prisma build issues and should be retried after Phase 3 repairs the database foundation.
+- At this phase's initial completion, API startup was blocked by Prisma/API build issues. Those were resolved; the API now starts locally and in production.
 
 ---
 
@@ -254,8 +261,8 @@ Goal: Establish PostgreSQL schema ownership and migration discipline.
 
 ## Verification
 
-- [ ] Migrations run locally.
-- [ ] Database connects from API.
+- [x] Migrations run locally.
+- [x] Database connects from API.
 - [ ] Fresh database can be created from migrations.
 - [x] No manual DB setup required beyond Docker/env.
 
@@ -265,7 +272,7 @@ Goal: Establish PostgreSQL schema ownership and migration discipline.
 - Prisma is the documented database tooling for schema, migrations, and generated client.
 - The schema was intentionally narrowed to the Phase 3 foundation tables only: `organizations`, `users`, and `organization_members`.
 - The previous broad scaffold included later-phase tables, uppercase roles, WhatsApp fields, and plaintext provider credential fields; those were removed from the foundation schema to avoid premature product behavior.
-- Migration application and API database connection were not verified in this environment because Docker is unavailable. Prisma schema validation and client generation pass.
+- Migration application and API/database connection were unavailable at this phase's initial completion. Local migrations and API/database operation were later verified with Docker. A from-scratch migration run on a separate fresh database remains unchecked above.
 
 ---
 
@@ -290,11 +297,11 @@ Goal: Add email/password auth for owners, admins, and recipients.
 
 ## Verification
 
-- [ ] Owner can sign up.
-- [ ] Admin/owner can log in.
+- [x] Owner can sign up (local campaign smoke test).
+- [x] Admin/owner can log in (live admin use).
 - [ ] Recipient can log in.
-- [ ] Wrong password fails safely.
-- [ ] Protected routes reject unauthenticated users.
+- [x] Wrong password fails safely (401 verified during live login troubleshooting).
+- [x] Protected routes reject unauthenticated users (live API check).
 - [ ] Role checks work server-side.
 - [ ] Auth tests pass if test framework exists.
 
@@ -307,7 +314,7 @@ Goal: Add email/password auth for owners, admins, and recipients.
 - Password reset tokens are hashed in the database; the reset URL is returned only outside production until email delivery is implemented.
 - Magic-link endpoints were removed from active auth because magic-link-only auth is not the v1 default.
 - Deferred API modules are excluded from the API TypeScript build until their schema phases are implemented.
-- Runtime auth verification was not completed because Docker/database access is unavailable in this environment.
+- Runtime auth was unverified when this phase first landed. Owner signup/login and unauthenticated-route rejection were subsequently exercised; recipient-login and complete auth regression coverage remain open above.
 
 ---
 
@@ -341,7 +348,7 @@ Goal: Make multi-tenancy real before feature data is added.
 - `GET /organizations` supports organization switcher data; clients may send `x-dripdesk-organization-id` to select the active organization for scoped requests.
 - Organization admin routes use membership roles through `RolesGuard`.
 - Organization and team-member queries now use tenant-scoped service/repository inputs.
-- Focused tenant isolation runtime tests remain deferred until a test runner and live database are available.
+- Focused live-database tenant isolation tests remain open. The repository now runs its unit/service tests under Node's test runner, but those tests do not replace a full cross-tenant API/DB integration check.
 
 ---
 
@@ -628,7 +635,7 @@ cleanup-expired-tokens
 - Added shared queue names and retry/backoff defaults in `@dripdesk/shared`.
 - Added an owner/admin-only API test enqueue route at `POST /queue/test`.
 - Added a standalone BullMQ worker startup that consumes the shared `dripdesk` queue, processes `test-job`, registers `schedule-due-steps` as a repeatable job, and logs lifecycle/failure events.
-- Docker Compose already includes Redis. Live enqueue/process verification still requires a running Redis instance.
+- Docker Compose includes Redis. Later local Mailpit campaign smoke testing verified scheduler → queue → worker delivery; the specific `/queue/test` endpoint and `test-job` path remain unchecked above.
 - Phase 11 intentionally does not implement due-step scheduling, message delivery, provider event processing, progress evaluation, or cleanup behavior.
 
 ---
@@ -795,7 +802,7 @@ Goal: Add real sending through Twilio, Telegram, and SMTP.
 - Added admin integration settings for Twilio, Telegram, and SMTP. Saved secrets are never returned to the frontend.
 - Worker `send-message` jobs now send prepared outbox records through Twilio SMS, Telegram Bot API, or SMTP, then record `sent` or `failed` events.
 - Twilio status and reply webhooks, plus Telegram reply webhooks, record safe message events and call `ProgressService`.
-- Telegram webhook secret validation is supported when configured. Twilio webhook signature validation remains limited until raw request signature handling is added.
+- Telegram webhook secrets are now required for inbound replies. Twilio status/reply callbacks validate `x-twilio-signature` against the organization-owned auth token before writing events.
 - Telegram link flow is the v1 manual chat-id pattern through the person Telegram channel address; automated recipient deep-link onboarding remains a future enhancement.
 - Phase 15 intentionally does not add unsubscribe handling, analytics, billing, or hosted lesson pages.
 
@@ -974,19 +981,21 @@ Goal: Make local and production-style deployment predictable.
 ## Verification
 
 - [ ] Fresh clone can start locally through documented commands.
-- [ ] Web can reach API.
-- [ ] API can reach database and Redis.
-- [ ] Worker can process queue.
+- [x] Web can reach API (live admin flows verified).
+- [x] API can reach database and Redis (live API flows and local smoke test verified).
+- [x] Worker can process queue (local Mailpit campaign smoke test verified).
 - [x] Database and Redis are not publicly exposed in production pattern.
 
 ## Phase 20 Notes
 
-- Completed on 2026-05-29.
+- Implemented on 2026-05-29; runtime verification followed on 2026-09-22.
 - Added Dockerfiles for web, API, and worker runtimes.
 - Local Compose now includes web, API, worker, Postgres, and Redis.
 - Production-style Compose keeps Postgres and Redis on an internal network and includes example Traefik labels for web/API.
 - Added `GET /api/health` for API healthchecks.
-- Docker build/runtime verification could not run because Docker is unavailable in the current environment.
+- Local Docker builds and a two-step SMTP-to-Mailpit campaign smoke test passed on 2026-09-22. GitHub Actions also builds and publishes API, worker, and web images used by the live Hostinger deployment.
+- Production uses `docker/docker-compose.hostinger.yml`; migrations are run manually before restarting services. The 2026-09-22 intake migration needed a temporary OpenSSL installation. The API/worker Dockerfiles now include OpenSSL, but the rebuilt migration image and the new session-version migration still require release verification.
+- A fresh-clone setup following only the written instructions has not yet been independently verified.
 
 ---
 
@@ -1019,8 +1028,9 @@ Goal: Review high-risk areas before serious use.
 - Completed on 2026-05-29.
 - Security review notes are documented in `docs/security-review.md`.
 - Stripe webhook verification is implemented.
-- `pnpm audit --audit-level high` ran and found high vulnerabilities that must be resolved before production.
-- Twilio webhook signature validation and tighter auth-endpoint throttling remain production hardening blockers.
+- Twilio callback signature validation and tighter auth-endpoint throttling have since been implemented.
+- A fresh `pnpm audit --audit-level high` on 2026-09-22 reports 58 advisories (2 critical, 33 high, 17 moderate, 6 low); `--prod` reports 49 (2 critical, 24 high, 17 moderate, 6 low). These findings need package-path and exploitability triage, not an assumption that every advisory is reachable in production.
+- Live Stripe webhook/checkout verification, production secret and backup checks, and a full provider-delivery smoke test remain open.
 
 ---
 
@@ -1037,9 +1047,10 @@ Goal: Ensure the MVP can be used reliably.
 - [x] Add tests for reply normalization.
 - [x] Add tests for active contact counting.
 - [x] Add tests for tenant authorization.
-- [ ] Add smoke test for campaign creation.
-- [ ] Add smoke test for enrollment.
-- [ ] Add smoke test for queued send.
+- [x] Add smoke test for campaign creation (local Mailpit script).
+- [x] Add smoke test for enrollment (local Mailpit script).
+- [x] Add smoke test for queued send (local Mailpit script).
+- [ ] Verify production subscriber intake, email/SMS campaign sends, and duplicate-event retry end to end.
 - [x] Add release checklist.
 
 ## Verification
@@ -1047,16 +1058,17 @@ Goal: Ensure the MVP can be used reliably.
 - [x] Type check passes.
 - [x] Lint passes.
 - [x] Tests pass.
-- [ ] Docker build passes.
+- [x] Docker build passes (local and GitHub Actions).
 - [ ] Manual smoke test completed.
 
 ## Phase 22 Notes
 
-- Completed on 2026-05-29.
-- `pnpm typecheck`, `pnpm build`, `pnpm lint`, and `pnpm test` pass.
+- Initial test infrastructure completed on 2026-05-29; local Docker smoke verification followed on 2026-09-22.
+- `pnpm lint` now runs ESLint across all workspaces; Node's built-in test runner reports all tests and source coverage, and CI gates image publishing on lint, typecheck, and tests. The previously passing build must be rerun after these changes.
 - Added an API roles guard test for tenant/member role authorization behavior.
 - Release checklist is documented in `docs/release-checklist.md`.
-- Live smoke tests for campaign creation, enrollment, queued sends, Docker build, and provider flows remain blocked until Docker/Postgres/Redis/provider services are available.
+- `scripts/smoke-campaign.mjs` passed against the local Docker/Mailpit stack on 2026-09-22, covering campaign creation, enrollment, queued email sends, and completion without sending external email.
+- Live provider test jobs have been accepted by SMTP and Twilio, but provider acceptance is not proof of final delivery. Production subscriber-intake-to-email/SMS delivery, duplicate retry, opt-out behavior, and later-step timing remain unverified.
 
 ---
 
@@ -1082,8 +1094,4 @@ Do not build these in v1 unless explicitly requested:
 
 # Current Next Step
 
-Start with Phase 0.
-
-Do not scaffold or rewrite before inspecting the actual repo state.
-
-After Phase 0, move to Phase 1 only if the baseline is understood and no conflicting existing structure needs review.
+Verify the rebuilt API image and apply the new session-version migration before deploying these auth changes. Then complete Phase 22's production subscriber-intake-to-delivery smoke test with a consenting test contact and the existing organization webhook key. Verify the person, enrollment, email and SMS outbox/events, an identical retry, and the scheduled follow-on steps without duplicate sends. Triage the current audit findings and close the remaining Phase 21/22 release checks before starting a new product feature phase.

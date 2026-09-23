@@ -4,7 +4,7 @@ Version: 1.0
 Project: DripDesk  
 Repository: `dripdesk`  
 System Type: Multi-Tenant SaaS Application  
-Last Updated: 2026-05-28
+Last Updated: 2026-09-23
 
 ---
 
@@ -219,7 +219,7 @@ Place files according to responsibility:
 - Worker processors: `apps/worker/src/processors/`
 - Worker job definitions: `apps/worker/src/jobs/`
 - Shared types/constants: `packages/shared/src/`
-- Database migrations: `packages/database/migrations/`
+- Database migrations: `packages/database/prisma/migrations/`
 - Docker files: `docker/`
 
 Do not create vague folders such as `helpers`, `misc`, `stuff`, `temp`, `old`, or `new`.

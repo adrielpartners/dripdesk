@@ -2,6 +2,8 @@
 
 Phase 8 adds the first tenant-owned recipient/contact data.
 
+This page records the Phase 8 implementation. Enrollment, billing, unsubscribe, provider handling, and webhook intake were added later; see `docs/enrollments-and-active-contacts.md`, `docs/billing.md`, `docs/provider-integrations.md`, and `docs/subscriber-intake.md` for current behavior.
+
 ## Database
 
 Tables:
@@ -74,5 +76,4 @@ Admin UI routes:
 
 The UI supports listing, creating, editing, archiving, deletion-request marking, adding channels, and enabling/disabling channels.
 
-Campaign enrollment, active contact billing, unsubscribe actions, and provider verification remain later-phase work.
-
+The Phase 8 scope ended here; later features are documented in the linked pages above.

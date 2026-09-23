@@ -1,5 +1,4 @@
-import net from 'node:net';
-import tls from 'node:tls';
+import nodemailer from 'nodemailer';
 import {
   formatProviderDiagnostic,
   normalizeProviderError,
@@ -18,27 +17,23 @@ interface SendProviderMessageInput {
 }
 
 class ProviderRequestError extends Error {
-  constructor(readonly diagnostic: ProviderDiagnostic) {
-    super(formatProviderDiagnostic(diagnostic));
-  }
-}
-
-class SmtpReplyError extends Error {
-  constructor(readonly replyCode: number, readonly reply: string) {
-    super(`SMTP response ${replyCode}`);
+  constructor(readonly diagnostic: ProviderDiagnostic, cause?: unknown) {
+    super(formatProviderDiagnostic(diagnostic), { cause });
   }
 }
 
 function diagnosticFromError(provider: ProviderDiagnostic['provider'], stage: string, error: unknown, secrets: string[] = []): ProviderDiagnostic {
   if (error instanceof ProviderRequestError) return error.diagnostic;
-  if (error instanceof SmtpReplyError) {
-    const enhancedCode = error.reply.match(/\b[245]\.\d{1,3}\.\d{1,3}\b/)?.[0];
+  const smtpError = error && typeof error === 'object' ? error as { responseCode?: unknown; response?: unknown; command?: unknown } : null;
+  if (provider === 'smtp' && typeof smtpError?.responseCode === 'number') {
+    const reply = typeof smtpError.response === 'string' ? smtpError.response : '';
+    const enhancedCode = reply.match(/\b[245]\.\d{1,3}\.\d{1,3}\b/)?.[0];
     return {
       provider,
-      stage,
-      code: `SMTP_${error.replyCode}`,
+      stage: typeof smtpError.command === 'string' ? smtpError.command : stage,
+      code: `SMTP_${smtpError.responseCode}`,
       providerCode: enhancedCode,
-      detail: sanitizeProviderDetail(error.reply.replace(/^\d{3}[- ]?/, ''), secrets),
+      detail: sanitizeProviderDetail(reply.replace(/^\d{3}[- ]?/, '') || 'SMTP provider rejected the message.', secrets),
     };
   }
 
@@ -144,7 +139,7 @@ export async function sendProviderMessage(input: SendProviderMessageInput) {
       }),
     ]);
 
-    throw new Error(safeError);
+    throw new Error(safeError, { cause: error });
   }
 
   // Provider acceptance and DB persistence cannot be atomic. If persistence fails,
@@ -211,7 +206,7 @@ export async function sendProviderTest(input: TestProviderJobData) {
   } catch (error) {
     const diagnostic = diagnosticFromError(input.providerType, 'configuration or connection', error);
     await credentials.markTested(input.organizationId, input.providerType, false, diagnostic);
-    throw new Error(JSON.stringify({ tag: 'dripdesk-provider-test', diagnostic }));
+    throw new Error(JSON.stringify({ tag: 'dripdesk-provider-test', diagnostic }), { cause: error });
   }
 }
 
@@ -306,163 +301,31 @@ async function sendTelegram(config: TelegramConfig, recipient: string, body: str
   return { provider: 'telegram', providerMessageId: result.result?.message_id?.toString() };
 }
 
-async function sendEmail(config: SmtpConfig, recipient: string, subject: string | null, body: string) {
-  const messageId = `<${Date.now()}.${Math.random().toString(36).slice(2)}@dripdesk.local>`;
-  let smtp: Awaited<ReturnType<typeof connectSmtp>>;
-  try {
-    smtp = await connectSmtp(config);
-  } catch (error) {
-    throw new ProviderRequestError(diagnosticFromError('smtp', 'connect', error));
+export async function sendEmail(config: SmtpConfig, recipient: string, subject: string | null, body: string) {
+  if ([config.fromEmail, config.fromName, recipient, subject].some((value) => value && /[\r\n]/.test(value))) {
+    throw new Error('Email address and header fields must be single-line values');
   }
-
-  let stage = 'server greeting';
+  const transport = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    requireTLS: !config.secure && (config.port === 587 || Boolean(config.username || config.password)),
+    auth: config.username || config.password ? { user: config.username ?? '', pass: config.password ?? '' } : undefined,
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 30000,
+  });
   try {
-    await smtp.expect([220]);
-    stage = 'EHLO';
-    await smtp.command(`EHLO dripdesk.local`, [250]);
-    if (!config.secure && (config.port === 587 || config.username || config.password)) {
-      stage = 'STARTTLS';
-      await smtp.command('STARTTLS', [220]);
-      stage = 'TLS handshake';
-      await smtp.startTls();
-      stage = 'EHLO after TLS';
-      await smtp.command('EHLO dripdesk.local', [250]);
-    }
-    if (config.username || config.password) {
-      stage = 'AUTH LOGIN';
-      await smtp.command('AUTH LOGIN', [334]);
-      await smtp.command(Buffer.from(config.username ?? '').toString('base64'), [334]);
-      await smtp.command(Buffer.from(config.password ?? '').toString('base64'), [235]);
-    }
-    stage = 'MAIL FROM';
-    await smtp.command(`MAIL FROM:<${config.fromEmail}>`, [250]);
-    stage = 'RCPT TO';
-    await smtp.command(`RCPT TO:<${recipient}>`, [250, 251]);
-    stage = 'DATA';
-    await smtp.command('DATA', [354]);
-    await smtp.command(
-      [
-        `From: ${config.fromName ?? 'DripDesk'} <${config.fromEmail}>`,
-        `To: <${recipient}>`,
-        `Subject: ${subject ?? 'New message'}`,
-        `Message-ID: ${messageId}`,
-        'MIME-Version: 1.0',
-        'Content-Type: text/html; charset=UTF-8',
-        '',
-        body.replace(/\r?\n/g, '\r\n'),
-        '.',
-      ].join('\r\n'),
-      [250],
-    );
-    return { provider: 'smtp', providerMessageId: messageId };
+    const result = await transport.sendMail({
+      from: { name: config.fromName ?? 'DripDesk', address: config.fromEmail },
+      to: { address: recipient, name: '' },
+      subject: subject ?? 'New message',
+      text: body,
+    });
+    return { provider: 'smtp', providerMessageId: result.messageId };
   } catch (error) {
-    throw new ProviderRequestError(diagnosticFromError('smtp', stage, error, [config.password ?? '', config.username ?? '']));
+    throw new ProviderRequestError(diagnosticFromError('smtp', 'send message', error, [config.password ?? '', config.username ?? '']), error);
   } finally {
-    smtp.close();
+    transport.close();
   }
-}
-
-async function connectSmtp(config: SmtpConfig) {
-  let socket = config.secure
-    ? tls.connect({ host: config.host, port: config.port, servername: config.host })
-    : net.connect({ host: config.host, port: config.port });
-
-  let buffer = '';
-  const responses: string[] = [];
-  let pending: { resolve: () => void; reject: (error: Error) => void; expected: number[]; timeout: NodeJS.Timeout } | null = null;
-
-  function acceptResponse(line: string, expected: number[]) {
-    const code = Number(line.slice(0, 3));
-    if (expected.includes(code)) return;
-    throw new SmtpReplyError(code, line);
-  }
-
-  const onData = (chunk: string) => {
-    buffer += chunk;
-    let end = buffer.indexOf('\n');
-    while (end !== -1) {
-      const line = buffer.slice(0, end).replace(/\r$/, '');
-      buffer = buffer.slice(end + 1);
-      // Multiline SMTP responses end with "250 ", not "250-".
-      if (/^\d{3} /.test(line)) {
-        if (pending) {
-          const waiter = pending;
-          pending = null;
-          clearTimeout(waiter.timeout);
-          try {
-            acceptResponse(line, waiter.expected);
-            waiter.resolve();
-          } catch (error) {
-            waiter.reject(error as Error);
-          }
-        } else {
-          responses.push(line);
-        }
-      }
-      end = buffer.indexOf('\n');
-    }
-  };
-
-  function rejectPending(error: Error) {
-    if (!pending) return;
-    const waiter = pending;
-    pending = null;
-    clearTimeout(waiter.timeout);
-    waiter.reject(error);
-  }
-
-  const onClose = () => rejectPending(new Error('SMTP connection closed'));
-  function attachSocket() {
-    socket.setEncoding('utf8');
-    socket.on('data', onData);
-    socket.on('error', rejectPending);
-    socket.on('close', onClose);
-  }
-  attachSocket();
-
-  return {
-    async startTls() {
-      socket.removeListener('data', onData);
-      socket.removeListener('error', rejectPending);
-      socket.removeListener('close', onClose);
-      socket = tls.connect({ socket, servername: config.host });
-      attachSocket();
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => reject(new Error('SMTP TLS handshake timed out')), 10000);
-        socket.once('secureConnect', () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-        socket.once('error', (error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-      });
-    },
-    async command(command: string, expected: number[]) {
-      socket.write(`${command}\r\n`);
-      return this.expect(expected);
-    },
-    expect(expected: number[]) {
-      const response = responses.shift();
-      if (response) {
-        try {
-          acceptResponse(response, expected);
-          return Promise.resolve();
-        } catch (error) {
-          return Promise.reject(error);
-        }
-      }
-
-      return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          rejectPending(new Error('SMTP provider timed out'));
-        }, 10000);
-        pending = { resolve, reject, expected, timeout };
-      });
-    },
-    close() {
-      socket.end();
-    },
-  };
 }

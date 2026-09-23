@@ -51,7 +51,7 @@ export class BillingController {
   @Post('webhook')
   @Throttle({ default: { limit: 300, ttl: 60000 } })
   @ApiOperation({ summary: 'Handle Stripe billing webhooks' })
-  async webhook(@Req() req: RawBodyRequest<any>, @Headers('stripe-signature') signature: string) {
+  async webhook(@Req() req: RawBodyRequest<Record<string, unknown>>, @Headers('stripe-signature') signature: string) {
     return ok(await this.billingService.handleWebhook(req.rawBody ?? Buffer.from(''), signature));
   }
 }

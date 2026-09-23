@@ -50,7 +50,10 @@ export class CurrentOrganizationGuard implements CanActivate {
     return true;
   }
 
-  private resolveRequestedOrganizationId(request: any, user: AuthenticatedUser): string | undefined {
+  private resolveRequestedOrganizationId(
+    request: { headers?: Record<string, string | string[] | undefined>; params?: { organizationId?: string } },
+    user: AuthenticatedUser,
+  ): string | undefined {
     const headerValue = request.headers?.[ORGANIZATION_HEADER];
     const headerOrganizationId = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 

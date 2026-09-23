@@ -98,7 +98,8 @@ export function useAuthSession() {
     }
   }
 
-  function logout() {
+  async function logout() {
+    await apiRequest<{ loggedOut: boolean }>('/auth/logout', { method: 'POST' });
     setSession(null);
     return navigateTo('/login');
   }

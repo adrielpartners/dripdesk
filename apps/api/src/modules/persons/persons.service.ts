@@ -1,9 +1,10 @@
-import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreatePersonDto } from './dto/create-person.dto';
 import { UpdatePersonDto } from './dto/update-person.dto';
 import { PersonChannelDto } from './dto/person-channel.dto';
+import { UpdatePersonChannelDto } from './dto/update-person-channel.dto';
 import { PersonsRepository } from './persons.repository';
 
 @Injectable()
@@ -11,8 +12,8 @@ export class PersonsService {
   constructor(private readonly persons: PersonsRepository) {}
 
   findAll(tenant: TenantContext, page = 1, limit = 50, search?: string) {
-    const safePage = Math.max(1, page);
-    const safeLimit = Math.min(Math.max(1, limit), 100);
+    const safePage = Number.isSafeInteger(page) && page > 0 ? page : 1;
+    const safeLimit = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, 100) : 50;
     return this.persons.findManyForTenant(tenant, safePage, safeLimit, search);
   }
 
@@ -62,14 +63,16 @@ export class PersonsService {
     tenant: TenantContext,
     personId: string,
     channelId: string,
-    dto: Partial<PersonChannelDto>,
+    dto: UpdatePersonChannelDto,
   ) {
-    if (dto.channelType && dto.address) {
-      this.validateChannels([dto as PersonChannelDto]);
-    }
+    const person = await this.persons.findByIdForTenant(tenant, personId);
+    const existing = person.channels.find((channel) => channel.id === channelId);
+    if (!existing) throw new NotFoundException('Person channel not found');
+    const normalized = this.normalizeChannel(dto);
+    this.validateChannels([{ channelType: normalized.channelType ?? existing.channelType, address: normalized.address ?? existing.address }]);
 
     try {
-      return await this.persons.updateChannelForTenant(tenant, personId, channelId, dto);
+      return await this.persons.updateChannelForTenant(tenant, personId, channelId, normalized);
     } catch (error) {
       this.handleUniqueChannelError(error);
       throw error;
@@ -117,4 +120,3 @@ export class PersonsService {
     }
   }
 }
-

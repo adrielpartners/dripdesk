@@ -175,7 +175,7 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: resetToken.userId },
-        data: { passwordHash },
+        data: { passwordHash, sessionVersion: { increment: 1 } },
       }),
       this.prisma.passwordResetToken.update({
         where: { id: resetToken.id },
@@ -186,6 +186,14 @@ export class AuthService {
     return { reset: true };
   }
 
+  async logout(userId: string) {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { sessionVersion: { increment: 1 } },
+    });
+    return { loggedOut: true };
+  }
+
   private createTokenResponse(user: UserWithMemberships) {
     const primaryMembership = user.memberships[0];
     const payload = {
@@ -193,6 +201,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       orgId: primaryMembership?.organizationId,
+      sessionVersion: user.sessionVersion,
     };
 
     const accessToken = this.jwtService.sign(payload);
@@ -264,6 +273,7 @@ export class AuthService {
     if (invite.email !== email.toLowerCase().trim()) {
       throw new UnauthorizedException('Email does not match invite');
     }
+    if (invite.role !== 'admin') throw new UnauthorizedException('Invite role is invalid');
 
     const passwordHash = await this.passwords.hashPassword(password);
 
@@ -282,7 +292,7 @@ export class AuthService {
         data: {
           organizationId: invite.organizationId,
           userId: user.id,
-          role: invite.role as any,
+          role: 'admin',
         },
       });
 
