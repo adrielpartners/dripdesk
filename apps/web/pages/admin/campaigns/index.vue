@@ -6,7 +6,39 @@
       <p class="page-header__description">Big ideas, bite-sized lessons. Build a sequence your people will look forward to.</p>
     </header>
 
+    <AppCard title="Your campaigns">
+      <AppEmptyState v-if="error" tone="danger" title="Could not load campaigns" :description="error" />
+      <AppEmptyState
+        v-else-if="!pending && campaigns.length === 0"
+        title="No campaigns yet"
+        description="A blank page is a good place to start. Give your first campaign a name below."
+      />
+      <AppTable v-else label="Campaigns">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Campaign ID</th>
+            <th>Status</th>
+            <th>Schedule</th>
+            <th>Steps</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="campaign in orderedCampaigns" :key="campaign.id">
+            <td>{{ campaign.name }}</td>
+            <td><AppCopyableText :value="campaign.id" copy-label="campaign ID" /></td>
+            <td><AppBadge :tone="campaign.status === 'active' ? 'success' : 'neutral'">{{ campaign.status }}</AppBadge></td>
+            <td>{{ campaign.scheduleType }}</td>
+            <td>{{ campaign._count?.steps ?? 0 }}</td>
+            <td><NuxtLink :to="`/admin/campaigns/${campaign.id}`">Edit</NuxtLink></td>
+          </tr>
+        </tbody>
+      </AppTable>
+    </AppCard>
+
     <AppCard title="Create campaign">
+      <AppEmptyState v-if="createError" tone="danger" title="Could not create campaign" :description="createError" />
       <form class="campaign-form" @submit.prevent="createCampaign">
         <AppInput v-model="form.name" label="Name" placeholder="7-day onboarding drip" />
         <AppInput v-model="form.description" label="Description" placeholder="Short lessons for new recipients" />
@@ -38,42 +70,11 @@
         </AppButton>
       </form>
     </AppCard>
-
-    <AppCard title="Campaigns">
-      <AppEmptyState v-if="error" tone="danger" title="Could not load campaigns" :description="error" />
-      <AppEmptyState
-        v-else-if="!pending && campaigns.length === 0"
-        title="No campaigns yet"
-        description="A blank page is a good place to start. Give your first campaign a name above."
-      />
-      <AppTable v-else label="Campaigns">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Campaign ID</th>
-            <th>Status</th>
-            <th>Schedule</th>
-            <th>Steps</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="campaign in campaigns" :key="campaign.id">
-            <td>{{ campaign.name }}</td>
-            <td><AppCopyableText :value="campaign.id" copy-label="campaign ID" /></td>
-            <td><AppBadge :tone="campaign.status === 'active' ? 'success' : 'neutral'">{{ campaign.status }}</AppBadge></td>
-            <td>{{ campaign.scheduleType }}</td>
-            <td>{{ campaign._count?.steps ?? 0 }}</td>
-            <td><NuxtLink :to="`/admin/campaigns/${campaign.id}`">Edit</NuxtLink></td>
-          </tr>
-        </tbody>
-      </AppTable>
-    </AppCard>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import type {
   Campaign,
   CampaignChannel,
@@ -112,8 +113,12 @@ const modeOptions = [
 ];
 
 const campaigns = ref<Campaign[]>([]);
+const orderedCampaigns = computed(() => [...campaigns.value].sort((a, b) =>
+  Number(b.status === 'active') - Number(a.status === 'active'),
+));
 const pending = ref(false);
 const error = ref<string | null>(null);
+const createError = ref<string | null>(null);
 const form = reactive({
   name: '',
   description: '',
@@ -146,7 +151,7 @@ async function loadCampaigns() {
 
 async function createCampaign() {
   pending.value = true;
-  error.value = null;
+  createError.value = null;
 
   try {
     const campaign = await apiRequest<Campaign>('/campaigns', {
@@ -164,7 +169,7 @@ async function createCampaign() {
 
     await navigateTo(`/admin/campaigns/${campaign.id}`);
   } catch (requestError) {
-    error.value = requestError instanceof Error ? requestError.message : 'Campaign could not be created';
+    createError.value = requestError instanceof Error ? requestError.message : 'Campaign could not be created';
   } finally {
     pending.value = false;
   }

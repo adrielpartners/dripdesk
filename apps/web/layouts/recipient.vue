@@ -6,9 +6,8 @@
           <div class="shell__topline">
             <AppBrand to="/recipient" />
             <div class="shell__tools">
-              <AppThemePicker />
               <div class="shell__account">
-                <span class="shell__user">{{ user?.email }}</span>
+                <span class="shell__user" :title="user?.email">{{ user?.email }}</span>
                 <AppButton variant="ghost" size="sm" @click="logout">Log out ↗</AppButton>
               </div>
             </div>
@@ -22,7 +21,7 @@
       <main class="shell__body">
         <slot />
       </main>
-      <footer class="shell__footer"><span>One little lesson at a time.</span><span>You've got this. ↗</span></footer>
+      <footer class="shell__footer"><span>One little lesson at a time.</span><span>You've got this. ↗</span><AppThemePicker /></footer>
     </div>
     <template #fallback>
       <AppEmptyState title="Checking session" description="Confirming your sign-in." />

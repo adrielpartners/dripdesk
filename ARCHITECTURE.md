@@ -4,7 +4,7 @@ Version: 1.0
 Project: DripDesk  
 Repository: `dripdesk`  
 System Type: Multi-Tenant SaaS Application  
-Last Updated: 2026-09-23
+Last Updated: 2026-09-24
 
 ---
 
@@ -987,7 +987,9 @@ DripDesk feels like a cheerful delivery studio: warm paper surfaces, expressive 
 
 `apps/web/composables/use-appearance.ts` owns the allow-listed theme catalog and `dripdesk-theme` preference cookie (one year, SameSite=Lax, path `/`). This is a browser preference, not organization branding or an authorization setting. The server reads the same cookie, and `app.vue` applies a validated `data-theme` attribute to the document root. Unknown theme IDs fall back to Sunshine.
 
-`AppThemePicker` appears in admin, recipient, authentication, and default layouts. Theme changes apply across routes and survive refreshes and application builds. `tokens.css` contains default semantic tokens and skin overrides for color, display font, radius, shadows, and interaction feel. Components do not branch on theme IDs.
+`AppThemePicker` appears in the footer of the admin, recipient, authentication, and default layouts. Theme changes apply across routes and survive refreshes and application builds. `tokens.css` contains default semantic tokens and skin overrides for color, display font, radius, shadows, and interaction feel. Components do not branch on theme IDs.
+
+The admin header keeps Dashboard, Campaigns, and People as primary links. A Settings gear opens a menu for Integrations and Billing. On narrow screens the signed-in email shares the brand row and truncates visually when needed; the full address remains available in its title. The Campaigns screen places existing campaigns above the creation form and shows active campaigns first within the loaded page.
 
 To add a skin, add its ID/label/description to `appearanceThemes` and a matching `:root[data-theme="id"]` token override in `tokens.css`. Reuse all existing components. Check form controls, status messages, dialogs, tables, keyboard focus, mobile overflow, persistence, and reduced-motion behavior before publishing. `AppBrand` and `AppDeliveryArt` are original inline SVGs using the same tokens; no generated images or external font services are required.
 

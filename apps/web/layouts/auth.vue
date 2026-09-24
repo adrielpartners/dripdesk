@@ -1,6 +1,6 @@
 <template>
   <div class="auth-shell">
-    <header class="auth-shell__header"><AppBrand /><AppThemePicker /></header>
+    <header class="auth-shell__header"><AppBrand /></header>
     <main class="auth-shell__main">
       <section class="auth-story" aria-labelledby="auth-story-title">
         <p class="page-header__eyebrow">A little learning. A lot of possibility.</p>
@@ -15,7 +15,7 @@
         <p class="auth-shell__footnote">A home for your ideas. A little nudge for your people.</p>
       </div>
     </main>
-    <footer class="auth-shell__footer">Made for a little progress, every day. <span aria-hidden="true">✳</span></footer>
+    <footer class="auth-shell__footer"><span>Made for a little progress, every day. <span aria-hidden="true">✳</span></span><AppThemePicker /></footer>
   </div>
 </template>
 
@@ -39,7 +39,8 @@
 .auth-shell__form :deep(.app-card__body) { padding: var(--dd-space-6); }
 .auth-shell__footnote { margin: var(--dd-space-6) 0 0; text-align: center; font-size: var(--dd-font-size-xs); color: var(--dd-color-text-muted); }
 .auth-shell__footer { max-width: 76rem; margin: auto; padding: var(--dd-space-6); font-family: var(--dd-font-mono); font-size: var(--dd-font-size-xs); color: var(--dd-color-text-muted); display: flex; justify-content: space-between; }
-.auth-shell__footer span { color: var(--dd-color-text); font-size: var(--dd-font-size-xl); }
+.auth-shell__footer > span { color: var(--dd-color-text); }
+.auth-shell__footer > span > span { font-size: var(--dd-font-size-xl); }
 @media (max-width: 55rem) { .auth-shell__main { grid-template-columns: 1fr; gap: var(--dd-space-6); } .auth-story { padding: var(--dd-space-6); } .auth-story h1 { font-size: 2.5rem; } .auth-story h1 br:last-child { display: none; } .auth-story .delivery-art, .auth-story__channels { display: none; } .auth-story__copy { margin-bottom: 0; font-size: var(--dd-font-size-md); } .auth-shell__form { max-width: none; } }
 @media (max-width: 30rem) { .auth-shell__header, .auth-shell__main, .auth-shell__footer { padding-left: var(--dd-space-4); padding-right: var(--dd-space-4); } .auth-story .page-header__eyebrow { font-size: 0.65rem; } }
 </style>
