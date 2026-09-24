@@ -8,7 +8,7 @@
       </p>
     </header>
 
-    <AppEmptyState v-if="error" title="Could not load campaign" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Could not load campaign" :description="error" />
 
     <template v-else>
       <div class="dashboard-grid">

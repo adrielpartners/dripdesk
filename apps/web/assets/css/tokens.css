@@ -21,23 +21,37 @@
   --dd-color-amber-50: #fffbeb;
   --dd-color-amber-700: #a16207;
 
-  --dd-color-bg: var(--dd-color-gray-50);
+  --dd-color-bg: #f8f6ee;
   --dd-color-surface: var(--dd-color-white);
-  --dd-color-surface-muted: var(--dd-color-gray-100);
-  --dd-color-border: var(--dd-color-gray-200);
-  --dd-color-border-strong: var(--dd-color-gray-300);
-  --dd-color-text: var(--dd-color-gray-900);
-  --dd-color-text-muted: var(--dd-color-gray-500);
-  --dd-color-primary: var(--dd-color-green-600);
-  --dd-color-primary-hover: var(--dd-color-green-700);
-  --dd-color-primary-soft: var(--dd-color-green-50);
-  --dd-color-secondary: var(--dd-color-green-100);
+  --dd-color-surface-muted: #f2f0e7;
+  --dd-color-border: #dedbd0;
+  --dd-color-border-strong: #a8a598;
+  --dd-color-text: #242720;
+  --dd-color-text-muted: #62655b;
+  --dd-color-primary: #ffe34d;
+  --dd-color-primary-hover: #f6d32b;
+  --dd-color-on-primary: #242720;
+  --dd-color-primary-soft: #fff7ce;
+  --dd-color-link: #414a26;
+  --dd-color-secondary: #e8eddd;
+  --dd-color-secondary-hover: #dce4cd;
+  --dd-color-on-secondary: #38432b;
+  --dd-color-success: #216343;
+  --dd-color-success-soft: #e4f3e7;
   --dd-color-danger: var(--dd-color-red-600);
   --dd-color-danger-soft: var(--dd-color-red-50);
   --dd-color-warning: var(--dd-color-amber-700);
   --dd-color-warning-soft: var(--dd-color-amber-50);
+  --dd-color-ink: #242720;
+  --dd-color-lilac: #eee7fa;
+  --dd-color-peach: #fbe8dd;
+  --dd-color-grid: #dedbcf;
+  --dd-color-overlay: rgb(36 39 32 / 0.45);
+  --dd-color-decoration: #ffe34d;
 
   --dd-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dd-font-display: "Trebuchet MS", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
+  --dd-font-mono: ui-monospace, "SFMono-Regular", Consolas, monospace;
   --dd-font-size-xs: 0.75rem;
   --dd-font-size-sm: 0.875rem;
   --dd-font-size-md: 1rem;
@@ -63,15 +77,19 @@
   --dd-space-12: 3rem;
   --dd-space-16: 4rem;
 
-  --dd-radius-sm: 0.25rem;
-  --dd-radius-md: 0.5rem;
-  --dd-radius-lg: 0.75rem;
+  --dd-radius-sm: 0.5rem;
+  --dd-radius-md: 0.85rem;
+  --dd-radius-lg: 1.25rem;
   --dd-radius-pill: 999px;
 
   --dd-border-width: 1px;
-  --dd-shadow-sm: 0 1px 2px rgb(23 33 27 / 0.06);
-  --dd-shadow-md: 0 12px 32px rgb(23 33 27 / 0.1);
-  --dd-shadow-focus: 0 0 0 3px rgb(47 155 95 / 0.22);
+  --dd-shadow-sm: 0 3px 0 rgb(36 39 32 / 0.06);
+  --dd-shadow-md: 0 16px 48px rgb(36 39 32 / 0.12);
+  --dd-shadow-button: 2px 3px 0 var(--dd-color-ink);
+  --dd-shadow-focus: 0 0 0 3px var(--dd-color-bg), 0 0 0 5px var(--dd-color-text);
+  --dd-control-border: var(--dd-color-ink);
+  --dd-decoration-opacity: 1;
+  --dd-hover-lift: -2px;
 
   --dd-z-dialog: 50;
   --dd-duration-fast: 120ms;
@@ -79,3 +97,32 @@
   --dd-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Skins override semantic tokens, never component selectors. Sunshine is the default. */
+:root[data-theme="studio"] {
+  --dd-color-bg: #f3f5f4;
+  --dd-color-surface-muted: #edf0ed;
+  --dd-color-border: #dce2dd;
+  --dd-color-border-strong: #9faea3;
+  --dd-color-text: #203329;
+  --dd-color-text-muted: #596c60;
+  --dd-color-primary: #d9ed9b;
+  --dd-color-primary-hover: #c9df84;
+  --dd-color-on-primary: #203329;
+  --dd-color-primary-soft: #edf5d9;
+  --dd-color-link: #2d6347;
+  --dd-color-secondary: #e4ece6;
+  --dd-color-secondary-hover: #d5e2d8;
+  --dd-color-on-secondary: #294c37;
+  --dd-color-ink: #203329;
+  --dd-color-grid: #dfe6e0;
+  --dd-color-decoration: #d9ed9b;
+  --dd-font-display: var(--dd-font-sans);
+  --dd-radius-sm: 0.375rem;
+  --dd-radius-md: 0.625rem;
+  --dd-radius-lg: 1rem;
+  --dd-shadow-sm: 0 2px 8px rgb(32 51 41 / 0.04);
+  --dd-shadow-button: 0 2px 4px rgb(32 51 41 / 0.08);
+  --dd-control-border: var(--dd-color-border-strong);
+  --dd-decoration-opacity: 0.6;
+  --dd-hover-lift: -1px;
+}

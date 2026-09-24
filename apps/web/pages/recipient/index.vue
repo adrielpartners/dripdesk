@@ -1,12 +1,12 @@
 <template>
   <div class="page-stack">
     <header class="page-header">
-      <p class="page-header__eyebrow">Recipient</p>
+      <p class="page-header__eyebrow">Your little corner of learning</p>
       <h1 class="page-header__title">My lessons</h1>
-      <p class="page-header__description">Assigned campaigns, current progress, and completed lesson history.</p>
+      <p class="page-header__description">Small steps add up. Pick up where you left off, or revisit something that stuck.</p>
     </header>
 
-    <AppEmptyState v-if="error" title="Could not load lessons" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Could not load lessons" :description="error" />
 
     <template v-else>
       <div class="dashboard-grid">

@@ -1,5 +1,5 @@
 <template>
-  <section class="app-empty-state">
+  <section class="app-empty-state" :class="`app-empty-state--${tone}`" :role="tone === 'danger' ? 'alert' : undefined">
     <div v-if="$slots.icon" class="app-empty-state__icon" aria-hidden="true">
       <slot name="icon" />
     </div>
@@ -12,10 +12,11 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
+withDefaults(defineProps<{
   title: string;
   description?: string;
-}>();
+  tone?: 'neutral' | 'danger';
+}>(), { tone: 'neutral' });
 </script>
 
 <style scoped>
@@ -25,7 +26,7 @@ defineProps<{
   gap: var(--dd-space-3);
   border: var(--dd-border-width) dashed var(--dd-color-border-strong);
   border-radius: var(--dd-radius-md);
-  background: var(--dd-color-surface);
+  background: var(--dd-color-surface-muted);
   padding: var(--dd-space-8) var(--dd-space-5);
   text-align: center;
 }
@@ -37,7 +38,7 @@ defineProps<{
   place-items: center;
   border-radius: var(--dd-radius-pill);
   background: var(--dd-color-primary-soft);
-  color: var(--dd-color-primary);
+  color: var(--dd-color-on-primary);
 }
 
 .app-empty-state__title,
@@ -62,5 +63,7 @@ defineProps<{
   gap: var(--dd-space-3);
   margin-top: var(--dd-space-2);
 }
+.app-empty-state--danger { border-style: solid; border-color: var(--dd-color-danger); background: var(--dd-color-danger-soft); }
+.app-empty-state--danger .app-empty-state__title,
+.app-empty-state--danger .app-empty-state__description { color: var(--dd-color-danger); }
 </style>
-

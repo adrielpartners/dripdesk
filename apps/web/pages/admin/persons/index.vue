@@ -1,9 +1,9 @@
 <template>
   <div class="page-stack">
     <header class="page-header">
-      <p class="page-header__eyebrow">Admin</p>
+      <p class="page-header__eyebrow">The people behind the progress</p>
       <h1 class="page-header__title">People</h1>
-      <p class="page-header__description">Create recipient records and keep their reachable channels organized.</p>
+      <p class="page-header__description">Every name is someone ready for their next little step. Keep everyone connected here.</p>
     </header>
 
     <AppCard title="Add person">
@@ -25,7 +25,7 @@
         <AppButton type="submit" variant="secondary">Search</AppButton>
       </form>
 
-      <AppEmptyState v-if="error" title="Could not load people" :description="error" />
+      <AppEmptyState v-if="error" tone="danger" title="Could not load people" :description="error" />
       <AppEmptyState
         v-else-if="!pending && persons.length === 0"
         title="No people yet"
@@ -144,4 +144,3 @@ function formatChannels(person: Person) {
   return person.channels.map((channel) => `${channel.channelType}: ${channel.address}`).join(', ');
 }
 </script>
-

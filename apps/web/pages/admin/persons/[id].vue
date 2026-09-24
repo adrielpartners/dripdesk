@@ -6,7 +6,7 @@
       <p class="page-header__description">Edit recipient identity fields and manage reachable channels.</p>
     </header>
 
-    <AppEmptyState v-if="error" title="Could not load person" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Could not load person" :description="error" />
     <template v-else-if="person">
       <AppCard title="Profile">
         <form class="person-form" @submit.prevent="savePerson">

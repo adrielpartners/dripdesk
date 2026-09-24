@@ -28,12 +28,12 @@ withDefaults(
 
 .app-badge--neutral {
   background: var(--dd-color-surface-muted);
-  color: var(--dd-color-gray-700);
+  color: var(--dd-color-text-muted);
 }
 
 .app-badge--success {
-  background: var(--dd-color-primary-soft);
-  color: var(--dd-color-green-700);
+  background: var(--dd-color-success-soft);
+  color: var(--dd-color-success);
 }
 
 .app-badge--warning {
@@ -46,4 +46,3 @@ withDefaults(
   color: var(--dd-color-danger);
 }
 </style>
-

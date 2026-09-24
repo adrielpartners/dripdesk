@@ -16,12 +16,18 @@ defineProps<{
 
 <style scoped>
 .app-metric-card {
+  position: relative;
+  overflow: hidden;
   border: var(--dd-border-width) solid var(--dd-color-border);
   border-radius: var(--dd-radius-md);
   background: var(--dd-color-surface);
   padding: var(--dd-space-5);
   box-shadow: var(--dd-shadow-sm);
 }
+.app-metric-card::after { content: ''; position: absolute; right: -0.8rem; top: -0.8rem; width: 3rem; height: 3rem; border-radius: 50%; background: var(--dd-color-primary-soft); opacity: var(--dd-decoration-opacity); pointer-events: none; }
+.app-metric-card:nth-child(2)::after { background: var(--dd-color-lilac); }
+.app-metric-card:nth-child(3)::after { background: var(--dd-color-success-soft); }
+.app-metric-card:nth-child(4)::after { background: var(--dd-color-peach); }
 
 .app-metric-card__label,
 .app-metric-card__value,
@@ -37,7 +43,10 @@ defineProps<{
 
 .app-metric-card__value {
   margin-top: var(--dd-space-2);
-  font-size: var(--dd-font-size-2xl);
+  font-family: var(--dd-font-display);
+  font-variant-numeric: tabular-nums;
+  font-size: 2.6rem;
+  letter-spacing: -0.06em;
   font-weight: var(--dd-font-weight-bold);
   line-height: var(--dd-line-height-tight);
 }
@@ -48,4 +57,3 @@ defineProps<{
   font-size: var(--dd-font-size-sm);
 }
 </style>
-

@@ -46,7 +46,7 @@ const titleId = useId();
   z-index: var(--dd-z-dialog);
   display: grid;
   place-items: end center;
-  background: rgb(17 24 39 / 0.42);
+  background: var(--dd-color-overlay);
   padding: var(--dd-space-4);
 }
 

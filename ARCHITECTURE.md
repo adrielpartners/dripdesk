@@ -975,23 +975,21 @@ Purpose: HTTPS and routing to web/API containers.
 
 ## Visual Tone
 
-DripDesk should feel:
-
-- clean
-- modern
-- airy
-- light
-- calm
-- focused
-- clearly readable
-- mobile-friendly
+DripDesk feels like a cheerful delivery studio: warm paper surfaces, expressive headings, ink outlines, tactile buttons, and original SVG illustrations. The default Sunshine skin uses bright yellow accents. Layouts remain readable, keyboard accessible, and mobile-friendly; decorative motion respects `prefers-reduced-motion`.
 
 ## Color Direction
 
-- medium green as primary accent
-- light green as secondary accent
-- neutral white and soft gray surfaces
-- high-contrast text for readability
+- Sunshine: yellow accents, warm neutral backgrounds, dark ink text, restrained lilac/peach details.
+- Studio: sage accents, cooler neutral surfaces, softer shadows, and quieter typography.
+- Success, warning, and danger have independent semantic tokens. Yellow branding does not change the meaning of provider status alerts.
+
+## Appearance Themes
+
+`apps/web/composables/use-appearance.ts` owns the allow-listed theme catalog and `dripdesk-theme` preference cookie (one year, SameSite=Lax, path `/`). This is a browser preference, not organization branding or an authorization setting. The server reads the same cookie, and `app.vue` applies a validated `data-theme` attribute to the document root. Unknown theme IDs fall back to Sunshine.
+
+`AppThemePicker` appears in admin, recipient, authentication, and default layouts. Theme changes apply across routes and survive refreshes and application builds. `tokens.css` contains default semantic tokens and skin overrides for color, display font, radius, shadows, and interaction feel. Components do not branch on theme IDs.
+
+To add a skin, add its ID/label/description to `appearanceThemes` and a matching `:root[data-theme="id"]` token override in `tokens.css`. Reuse all existing components. Check form controls, status messages, dialogs, tables, keyboard focus, mobile overflow, persistence, and reduced-motion behavior before publishing. `AppBrand` and `AppDeliveryArt` are original inline SVGs using the same tokens; no generated images or external font services are required.
 
 ## Design System Rules
 

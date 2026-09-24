@@ -601,20 +601,17 @@ Rules:
 
 Use a token-driven design system.
 
-Visual style:
+Visual style: cheerful, expressive, readable, and mobile-friendly. Sunshine is the default skin: bright yellow, warm paper surfaces, dark ink outlines, and playful SVG details. Studio is a quieter alternate skin.
 
-- clean
-- modern
-- airy
-- light
-- calm
-- readable
-- mobile-friendly
+Theme rules:
 
-Accent colors:
-
-- medium green primary accent
-- light green secondary accent
+- Register skins in `use-appearance.ts` and override semantic tokens in `tokens.css`.
+- Never branch on a skin ID inside page or primitive styles.
+- Use `--dd-color-on-primary` for text on accent buttons and `--dd-color-link` for text links; bright yellow is not a readable text color on white.
+- Keep success/warning/danger tokens independent of brand accents.
+- Preserve the appearance cookie through login/logout; it contains no credentials.
+- Respect reduced motion and retain visible keyboard focus.
+- Verify theme switching, refresh persistence, narrow screens, and both public and authenticated layouts.
 
 Rules:
 

@@ -1,12 +1,19 @@
 <template>
   <div class="page-stack">
-    <header class="page-header">
-      <p class="page-header__eyebrow">Admin</p>
-      <h1 class="page-header__title">Dashboard</h1>
-      <p class="page-header__description">Track active contacts, engagement, and completion across drip campaigns.</p>
+    <header class="welcome-banner">
+      <div>
+        <p class="page-header__eyebrow">Your dashboard · The big picture</p>
+        <h1 class="welcome-banner__title">Good things,<br />on repeat.</h1>
+        <p class="welcome-banner__copy">Little lessons make a lasting difference. Here's how your people and campaigns are getting along.</p>
+        <div class="welcome-banner__actions">
+          <NuxtLink class="action-link" to="/admin/campaigns">Create a campaign <span aria-hidden="true">↗</span></NuxtLink>
+          <NuxtLink class="action-link action-link--quiet" to="/admin/persons">Meet your people <span aria-hidden="true">→</span></NuxtLink>
+        </div>
+      </div>
+      <AppDeliveryArt />
     </header>
 
-    <AppEmptyState v-if="error" title="Could not load dashboard" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Could not load dashboard" :description="error" />
 
     <template v-else>
       <div class="dashboard-grid">
@@ -36,7 +43,7 @@
         <AppEmptyState
           v-if="!pending && dashboard && dashboard.campaignCount === 0"
           title="No campaigns yet"
-          description="Create a campaign, add published steps, and enroll people to start seeing completion analytics."
+        description="Your next good idea belongs here. Create a campaign, add a few lessons, and invite your people along."
         >
           <template #actions>
             <NuxtLink to="/admin/campaigns">

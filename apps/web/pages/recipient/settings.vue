@@ -6,7 +6,7 @@
       <p class="page-header__description">Review delivery channels and unsubscribe preferences.</p>
     </header>
 
-    <AppEmptyState v-if="error" title="Could not load settings" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Could not load settings" :description="error" />
 
     <template v-else>
       <AppCard title="Channels">

@@ -34,13 +34,13 @@
         placeholder="At least 8 characters"
         autocomplete="new-password"
       />
-      <AppEmptyState v-if="error" title="Registration failed" :description="error" />
+      <AppEmptyState v-if="error" tone="danger" title="Registration failed" :description="error" />
       <AppButton type="submit" size="lg" :disabled="pending">
         {{ pending ? 'Creating account' : 'Create account' }}
       </AppButton>
       <p style="color:var(--dd-color-text-muted);font-size:var(--dd-font-size-sm);text-align:center;margin:0">
         Already have an account?
-        <NuxtLink to="/login" style="color:var(--dd-color-primary)">Sign in</NuxtLink>
+        <NuxtLink to="/login">Sign in</NuxtLink>
       </p>
     </form>
   </AppCard>

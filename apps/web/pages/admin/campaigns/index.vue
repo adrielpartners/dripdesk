@@ -1,9 +1,9 @@
 <template>
   <div class="page-stack">
     <header class="page-header">
-      <p class="page-header__eyebrow">Admin</p>
+      <p class="page-header__eyebrow">Your delivery studio</p>
       <h1 class="page-header__title">Campaigns</h1>
-      <p class="page-header__description">Create linear micro-course campaigns and manage their setup.</p>
+      <p class="page-header__description">Big ideas, bite-sized lessons. Build a sequence your people will look forward to.</p>
     </header>
 
     <AppCard title="Create campaign">
@@ -40,11 +40,11 @@
     </AppCard>
 
     <AppCard title="Campaigns">
-      <AppEmptyState v-if="error" title="Could not load campaigns" :description="error" />
+      <AppEmptyState v-if="error" tone="danger" title="Could not load campaigns" :description="error" />
       <AppEmptyState
         v-else-if="!pending && campaigns.length === 0"
         title="No campaigns yet"
-        description="Create the first linear drip campaign above."
+        description="A blank page is a good place to start. Give your first campaign a name above."
       />
       <AppTable v-else label="Campaigns">
         <thead>

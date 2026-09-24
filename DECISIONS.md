@@ -888,3 +888,29 @@ A local-only logout and password reset left seven-day bearer tokens usable. A us
 ## Reversibility
 
 Moderate. Per-device sessions or HttpOnly-cookie auth can supersede user-wide versioning later.
+
+---
+
+# Decision 031: Shared semantic skins with a browser appearance preference
+
+## Decision
+
+Adopt a cheerful yellow Sunshine visual identity and ship a quieter Studio skin. Use one allow-listed catalog, CSS semantic token overrides, and a browser preference cookie read during server rendering. Expose a theme picker in every app layout. Original SVG art and CSS provide decoration without image generation.
+
+## Rationale
+
+The user requested a more distinctive, playful product and the ability to remake the whole visual design through skins. Shared primitives already serve the app, so token overrides can change every screen without duplicating components or business logic. A cookie lets server and client use the same appearance on refresh.
+
+## Tradeoffs
+
+- Themes are per browser, not synchronized to accounts or organization branding.
+- This release contains two light skins; a future dark skin must supply suitable semantic colors and pass contrast checks.
+- Skin changes affect style tokens, not information architecture or business behavior.
+
+## Date Adopted
+
+2026-09-23
+
+## Reversibility
+
+Easy. Skins and SVG decoration can be replaced independently of application services and stored business data.

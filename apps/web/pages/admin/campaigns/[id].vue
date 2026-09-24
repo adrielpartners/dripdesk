@@ -7,7 +7,7 @@
       <AppCopyableText v-if="campaign" :value="campaign.id" label="Campaign ID for subscriber webhooks" copy-label="campaign ID" />
     </header>
 
-    <AppEmptyState v-if="error" title="Campaign error" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Campaign error" :description="error" />
 
     <template v-if="campaign">
       <AppCard title="Campaign setup">

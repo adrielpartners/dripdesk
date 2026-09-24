@@ -38,6 +38,8 @@ const classes = computed(() => [`app-button--${props.variant}`, `app-button--${p
   line-height: var(--dd-line-height-tight);
   text-align: center;
   transition:
+    transform var(--dd-duration-fast) var(--dd-ease-standard),
+    box-shadow var(--dd-duration-fast) var(--dd-ease-standard),
     background-color var(--dd-duration-fast) var(--dd-ease-standard),
     border-color var(--dd-duration-fast) var(--dd-ease-standard),
     color var(--dd-duration-fast) var(--dd-ease-standard);
@@ -66,21 +68,25 @@ const classes = computed(() => [`app-button--${props.variant}`, `app-button--${p
 
 .app-button--primary {
   background: var(--dd-color-primary);
-  color: var(--dd-color-white);
+  color: var(--dd-color-on-primary);
+  border-color: var(--dd-control-border);
+  box-shadow: var(--dd-shadow-button);
 }
 
 .app-button--primary:hover:not(:disabled) {
   background: var(--dd-color-primary-hover);
+  transform: translateY(var(--dd-hover-lift));
 }
+.app-button--primary:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
 
 .app-button--secondary {
-  border-color: var(--dd-color-green-200);
+  border-color: var(--dd-color-border-strong);
   background: var(--dd-color-secondary);
-  color: var(--dd-color-green-700);
+  color: var(--dd-color-on-secondary);
 }
 
 .app-button--secondary:hover:not(:disabled) {
-  background: var(--dd-color-green-200);
+  background: var(--dd-color-secondary-hover);
 }
 
 .app-button--ghost {

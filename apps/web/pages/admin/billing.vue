@@ -6,7 +6,7 @@
       <p class="page-header__description">Manage active-contact limits and Stripe subscription status.</p>
     </header>
 
-    <AppEmptyState v-if="error" title="Could not load billing" :description="error" />
+    <AppEmptyState v-if="error" tone="danger" title="Could not load billing" :description="error" />
 
     <template v-else>
       <div class="dashboard-grid">

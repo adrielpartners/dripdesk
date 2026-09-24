@@ -37,13 +37,14 @@ defineProps<{
 
 .app-table :deep(th) {
   background: var(--dd-color-surface-muted);
-  color: var(--dd-color-gray-700);
+  color: var(--dd-color-text-muted);
   font-size: var(--dd-font-size-sm);
   font-weight: var(--dd-font-weight-semibold);
 }
+.app-table :deep(tbody tr:hover) { background: var(--dd-color-primary-soft); }
+.app-table :deep(td a) { font-weight: var(--dd-font-weight-semibold); }
 
 .app-table :deep(tr:last-child td) {
   border-bottom: 0;
 }
 </style>
-

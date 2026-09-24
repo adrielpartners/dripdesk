@@ -432,9 +432,9 @@ function providerLabel(providerType: ProviderType) {
 }
 
 .notice--success {
-  border-color: var(--dd-color-green-500);
-  background: var(--dd-color-primary-soft);
-  color: var(--dd-color-green-700);
+  border-color: var(--dd-color-success);
+  background: var(--dd-color-success-soft);
+  color: var(--dd-color-success);
 }
 
 .notice--warning {
