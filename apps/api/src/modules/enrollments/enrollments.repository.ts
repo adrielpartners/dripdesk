@@ -10,7 +10,7 @@ export class EnrollmentsRepository {
 
   async findManyForCampaign(tenant: TenantContext, campaignId: string, page: number, limit: number) {
     await this.findCampaignForTenant(tenant, campaignId);
-    return this.findManyForTenant({ organizationId: tenant.organizationId, campaignId }, page, limit);
+    return this.findManyForTenant({ organizationId: tenant.organizationId, campaignId: campaignId.toUpperCase() }, page, limit);
   }
 
   async findManyForPerson(tenant: TenantContext, personId: string, page: number, limit: number) {
@@ -150,7 +150,7 @@ export class EnrollmentsRepository {
   private async findCampaignForTenant(tenant: TenantContext, campaignId: string, client: Prisma.TransactionClient = this.prisma) {
     const campaign = await client.campaign.findFirst({
       where: {
-        id: campaignId,
+        id: campaignId.toUpperCase(),
         organizationId: tenant.organizationId,
         status: { not: 'archived' },
       },

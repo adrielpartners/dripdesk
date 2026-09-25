@@ -189,7 +189,7 @@ const intakeUrl = computed(() => auth.user.value?.organizationId
 const intakeExample = computed(() => `curl -X POST '${intakeUrl.value || 'https://api.dripdesk.net/api/webhooks/subscribers/ORGANIZATION_ID'}' \\
   -H 'Content-Type: application/json' \\
   -H 'X-DripDesk-Intake-Key: YOUR_INTAKE_KEY' \\
-  --data '{"eventId":"signup-123","campaignId":"CAMPAIGN_ID","displayName":"Jordan Lee","email":"jordan@example.com","consent":true}'`);
+  --data '{"eventId":"signup-123","campaignId":"A1B2C3","displayName":"Jordan Lee","email":"jordan@example.com","consent":true}'`);
 let formHydrated = false;
 const pending = ref<ProviderType | ''>('');
 const pageError = ref('');

@@ -1,14 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsArray, IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class SubscriberIntakeDto {
   @ApiProperty({ description: 'Unique event ID from the sending platform, reused unchanged on retries' })
   @IsString() @IsNotEmpty() @MaxLength(160)
   eventId!: string;
 
-  @ApiProperty()
-  @IsUUID()
+  @ApiProperty({ description: 'Six-character alphanumeric campaign ID (case-insensitive)', example: 'A1B2C3' })
+  @Matches(/^[A-Z0-9]{6}$/i, { message: 'campaignId must be exactly six letters or digits' })
   campaignId!: string;
 
   @ApiProperty()

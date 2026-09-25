@@ -11,7 +11,7 @@ export class StepsRepository {
   async findCampaignForTenant(tenant: TenantContext, campaignId: string) {
     const campaign = await this.prisma.campaign.findFirst({
       where: {
-        id: campaignId,
+        id: campaignId.toUpperCase(),
         organizationId: tenant.organizationId,
         status: { not: 'archived' },
       },
@@ -24,7 +24,7 @@ export class StepsRepository {
   async findManyForCampaign(tenant: TenantContext, campaignId: string) {
     await this.findCampaignForTenant(tenant, campaignId);
     return this.prisma.campaignStep.findMany({
-      where: { campaignId, status: { not: 'archived' } },
+      where: { campaignId: campaignId.toUpperCase(), status: { not: 'archived' } },
       orderBy: { stepOrder: 'asc' },
     });
   }
@@ -32,13 +32,13 @@ export class StepsRepository {
   async createForCampaign(tenant: TenantContext, campaignId: string, dto: CreateStepDto) {
     await this.findCampaignForTenant(tenant, campaignId);
     const maxOrder = await this.prisma.campaignStep.aggregate({
-      where: { campaignId, status: { not: 'archived' } },
+      where: { campaignId: campaignId.toUpperCase(), status: { not: 'archived' } },
       _max: { stepOrder: true },
     });
 
     return this.prisma.campaignStep.create({
       data: {
-        campaignId,
+        campaignId: campaignId.toUpperCase(),
         stepOrder: (maxOrder._max.stepOrder ?? 0) + 1,
         title: dto.title,
         status: dto.status ?? 'draft',
@@ -85,7 +85,7 @@ export class StepsRepository {
     await this.findCampaignForTenant(tenant, campaignId);
     const existingSteps = await this.prisma.campaignStep.findMany({
       where: {
-        campaignId,
+        campaignId: campaignId.toUpperCase(),
         status: { not: 'archived' },
       },
       select: { id: true },

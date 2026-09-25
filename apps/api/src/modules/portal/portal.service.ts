@@ -68,7 +68,7 @@ export class PortalService {
 
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
-        campaignId,
+        campaignId: campaignId.toUpperCase(),
         personId: { in: personIds },
         status: { not: 'removed' },
       },
@@ -169,7 +169,7 @@ export class PortalService {
 
     const enrollment = await this.prisma.enrollment.findFirst({
       where: {
-        campaignId,
+        campaignId: campaignId.toUpperCase(),
         personId: { in: personIds },
         status: 'active',
       },

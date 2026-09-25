@@ -8,7 +8,7 @@
     "start": "node dist/apps/api/src/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test",
-    "test": "node --experimental-test-coverage --test --require ts-node/register src/common/guards/roles.guard.test.ts src/modules/enrollments/enrollments.repository.test.ts src/modules/webhooks/webhooks.service.test.ts src/modules/webhooks/subscriber-intake.service.test.ts src/modules/billing/billing.service.test.ts src/modules/tracking/tracking.service.test.ts src/modules/campaigns/campaigns.service.test.ts src/modules/campaigns/campaigns.dto.test.ts src/modules/persons/persons.service.test.ts src/modules/auth/session-revocation.test.ts src/modules/provider-credentials/provider-credentials.service.test.ts src/modules/queue/queue.service.test.ts",
+    "test": "node --experimental-test-coverage --test --require ts-node/register src/common/guards/roles.guard.test.ts src/modules/enrollments/enrollments.repository.test.ts src/modules/webhooks/webhooks.service.test.ts src/modules/webhooks/subscriber-intake.service.test.ts src/modules/billing/billing.service.test.ts src/modules/tracking/tracking.service.test.ts src/modules/campaigns/campaigns.service.test.ts src/modules/campaigns/campaigns.repository.test.ts src/modules/campaigns/campaigns.dto.test.ts src/modules/persons/persons.service.test.ts src/modules/auth/session-revocation.test.ts src/modules/provider-credentials/provider-credentials.service.test.ts src/modules/queue/queue.service.test.ts",
     "test:e2e": "node --test --require ts-node/register test/api-e2e.test.ts"
   },
   "dependencies": {

@@ -19,6 +19,8 @@ DRIPDESK_DATABASE_URL="postgresql://user:pass@localhost:5432/dripdesk" pnpm --fi
 Run with Postgres, Redis, API, worker, and web available:
 
 - apply migrations to a fresh Postgres database
+- for the six-character campaign ID release, verify an existing campaign, step, and enrollment keep valid references after migration; verify a new campaign receives a six-character uppercase ID
+- verify campaign URLs, admin/recipient views, reports, and subscriber intake use the same ID, including lowercase intake input
 - register owner account and organization
 - log in as owner
 - create person with channel

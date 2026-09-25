@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -32,7 +32,7 @@ export class CampaignsRepository {
   async findByIdForTenant(tenant: TenantContext, id: string) {
     const campaign = await this.prisma.campaign.findFirst({
       where: {
-        id,
+        id: id.toUpperCase(),
         organizationId: tenant.organizationId,
         status: { not: 'archived' },
       },
@@ -43,26 +43,33 @@ export class CampaignsRepository {
     return campaign;
   }
 
-  createForTenant(tenant: TenantContext, dto: CreateCampaignDto) {
-    return this.prisma.campaign.create({
-      data: {
-        organizationId: tenant.organizationId,
-        createdById: tenant.userId,
-        name: dto.name,
-        description: dto.description,
-        scheduleType: dto.scheduleType ?? 'daily',
-        scheduleConfig: this.scheduleConfigJson(dto.scheduleConfig),
-        progressRule: dto.progressRule ?? 'time_based',
-        mode: dto.mode ?? 'standard',
-        defaultChannels: dto.defaultChannels?.length ? dto.defaultChannels : ['email'],
-      },
-    });
+  async createForTenant(tenant: TenantContext, dto: CreateCampaignDto) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      try {
+        return await this.prisma.campaign.create({
+          data: {
+            organizationId: tenant.organizationId,
+            createdById: tenant.userId,
+            name: dto.name,
+            description: dto.description,
+            scheduleType: dto.scheduleType ?? 'daily',
+            scheduleConfig: this.scheduleConfigJson(dto.scheduleConfig),
+            progressRule: dto.progressRule ?? 'time_based',
+            mode: dto.mode ?? 'standard',
+            defaultChannels: dto.defaultChannels?.length ? dto.defaultChannels : ['email'],
+          },
+        });
+      } catch (error) {
+        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      }
+    }
+    throw new ServiceUnavailableException('Could not allocate a campaign ID. Please try again.');
   }
 
   async updateForTenant(tenant: TenantContext, id: string, dto: UpdateCampaignDto) {
     await this.findByIdForTenant(tenant, id);
     return this.prisma.campaign.update({
-      where: { id },
+      where: { id: id.toUpperCase() },
       data: {
         name: dto.name,
         description: dto.description,
@@ -79,7 +86,7 @@ export class CampaignsRepository {
   async activateForTenant(tenant: TenantContext, id: string) {
     await this.findByIdForTenant(tenant, id);
     return this.prisma.campaign.update({
-      where: { id },
+      where: { id: id.toUpperCase() },
       data: { status: 'active', activatedAt: new Date() },
       include: { steps: { where: { status: { not: 'archived' } }, orderBy: { stepOrder: 'asc' } } },
     });
@@ -88,7 +95,7 @@ export class CampaignsRepository {
   async archiveForTenant(tenant: TenantContext, id: string) {
     await this.findByIdForTenant(tenant, id);
     return this.prisma.campaign.update({
-      where: { id },
+      where: { id: id.toUpperCase() },
       data: { status: 'archived', archivedAt: new Date() },
     });
   }

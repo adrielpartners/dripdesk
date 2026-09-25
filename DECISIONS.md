@@ -4,7 +4,7 @@ Version: 1.2
 
 Project: DripDesk  
 Repository: `dripdesk`  
-Last Updated: 2026-09-23
+Last Updated: 2026-09-25
 
 ---
 
@@ -914,3 +914,30 @@ The user requested a more distinctive, playful product and the ability to remake
 ## Reversibility
 
 Easy. Skins and SVG decoration can be replaced independently of application services and stored business data.
+
+---
+
+# Decision 032: Use six-character alphanumeric campaign IDs
+
+## Decision
+
+Campaign primary keys and all campaign foreign keys use six uppercase alphanumeric characters. PostgreSQL generates random IDs, a unique primary key rejects collisions, and campaign creation retries collisions. API requests accept lowercase input but return uppercase IDs. Other entity primary keys remain UUIDs.
+
+## Rationale
+
+Campaign IDs are copied into webhook configurations and appear in URLs, reports, and API responses. A short, consistent ID is easier for people and integrations to use than a 36-character UUID. Using it as the database key also prevents an internal campaign UUID from leaking through another response path.
+
+## Tradeoffs
+
+- The code space has 36^6 possibilities; collisions require retry and the format cannot scale indefinitely.
+- Replacing existing campaign UUIDs changes campaign URLs and requires external webhook senders to update their saved IDs.
+- The migration changes campaign-related foreign keys and requires coordinated API/worker downtime so queued work cannot refer to old IDs.
+- Short IDs are guessable and are not authorization; tenant and recipient access checks remain mandatory.
+
+## Date Adopted
+
+2026-09-24
+
+## Reversibility
+
+Difficult after deployment because the format becomes a public integration contract and campaign primary key.

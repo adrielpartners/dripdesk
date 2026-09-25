@@ -1,6 +1,6 @@
 # Deployment
 
-DripDesk has local and production-style Compose examples, plus a Hostinger-specific Compose file used by the current deployment. Last updated: 2026-09-22.
+DripDesk has local and production-style Compose examples, plus a Hostinger-specific Compose file used by the current deployment. Last updated: 2026-09-25.
 
 ## Dockerfiles
 
@@ -47,6 +47,8 @@ Production assumptions:
 Pushing to `main` triggers `.github/workflows/docker-build.yml`. Lint, typecheck, and tests must pass before it builds and publishes the three images to GHCR. That is an image-publish step, **not** a complete deployment: the VPS must pull the new images and recreate the services. Apply any new database migration before replacing API/worker containers. A documentation-only push will also trigger checks and image builds under the current workflow.
 
 For a schema release, first confirm the migration files and backup decision, then run Prisma `migrate deploy` against the production database from a one-off API image/container using the VPS environment, and only then refresh services with the new images. Do not use `prisma migrate dev` in production. Verify API health and the relevant end-to-end flow afterward. Use `docker compose -p dripdesk --project-directory /opt/dripdesk-release --env-file .env -f docker/docker-compose.hostinger.yml` from `/opt/dripdesk-release`; omitting `-p dripdesk` selects a different project, while omitting `--project-directory` looks for `docker/.env` instead of the live root `.env`. On 2026-09-22, the subscriber-intake migration required a temporary `apk add --no-cache openssl` because the then-current API image lacked OpenSSL. The API and worker Dockerfiles now install OpenSSL and copy Prisma's native query engine to a `.node` filename. Verify the release image can run `prisma -v` and `prisma migrate deploy` before applying a migration. Do not assume a newly pushed image has been pulled or a migration applied.
+
+The six-character campaign ID migration replaces campaign primary keys and all campaign foreign keys. Coordinate it as a maintenance release: drain queued work, stop API and worker writes, apply the migration, then start matching API/worker/web images. Inspect any remaining queued job payloads for old campaign UUIDs before restarting workers. Old campaign URLs and webhook sender configurations must be replaced with the new IDs. Do not run old application images against the migrated schema or new images against the old schema.
 
 The production intake endpoint and one-time key contract are documented in `docs/subscriber-intake.md`. The production campaign intake-to-delivery path is still awaiting a full smoke test; see `docs/release-checklist.md`.
 

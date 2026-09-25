@@ -6,24 +6,36 @@ import { SubscriberIntakeService } from './subscriber-intake.service';
 import { SubscriberIntakeDto } from './dto/subscriber-intake.dto';
 
 const organizationId = 'a24bc355-e0ba-4621-aab5-13e2f4855d1f';
-const campaignId = '16d50374-51ca-4246-99d5-e041dc9a23fe';
+const campaignId = 'A1B2C3';
 const key = 'ddi_test-secret';
 const dto = { eventId: 'signup-1', campaignId, displayName: 'Jordan Lee', email: 'Jordan@Example.com', consent: true as const };
 
 async function run() {
   const falseString = plainToInstance(SubscriberIntakeDto, { ...dto, consent: 'false' }, { enableImplicitConversion: true });
   assert.ok(validateSync(falseString).some((error) => error.property === 'consent'));
+  for (const value of [campaignId, campaignId.toLowerCase()]) {
+    const validated = plainToInstance(SubscriberIntakeDto, { ...dto, campaignId: value });
+    assert.ok(!validateSync(validated).some((error) => error.property === 'campaignId'));
+  }
+  for (const value of ['ABCDE', 'ABC-12', 'ABCDEFG', '16d50374-51ca-4246-99d5-e041dc9a23fe']) {
+    const validated = plainToInstance(SubscriberIntakeDto, { ...dto, campaignId: value });
+    assert.ok(validateSync(validated).some((error) => error.property === 'campaignId'));
+  }
 
   let credential: { tokenHash: string } | null = null;
   let event: { payloadHash: string; personId: string; enrollmentId: string } | null = null;
   const channels: Array<{ channelType: string; address: string; personId: string; enabled: boolean; unsubscribed: boolean; suppressed: boolean; person: { id: string; status: string; tags: string[] } }> = [];
   let enrollmentCount = 0;
+  let campaignLookup: Record<string, string> = {};
   const tx = {
     subscriberIntakeEvent: {
       findUnique: async () => event,
       create: async ({ data }: { data: typeof event }) => { event = data; },
     },
-    campaign: { findFirst: async () => ({ id: campaignId, organizationId, createdById: 'admin-id', status: 'active', defaultChannels: ['email'], steps: [{ channelOverrides: [] }] }) },
+    campaign: { findFirst: async ({ where }: { where: Record<string, string> }) => {
+      campaignLookup = where;
+      return { id: campaignId, organizationId, createdById: 'admin-id', status: 'active', defaultChannels: ['email'], steps: [{ channelOverrides: [] }] };
+    } },
     personChannel: {
       findMany: async () => channels,
       create: async ({ data }: { data: { personId: string; channelType: string; address: string } }) => {
@@ -54,6 +66,7 @@ async function run() {
   assert.equal(first.replayed, false);
   assert.equal(channels[0].address, 'jordan@example.com');
   assert.equal(enrollmentCount, 1);
+  assert.equal(campaignLookup.id, campaignId);
 
   const replay = await service.receive(organizationId, generated.key, dto);
   assert.equal(replay.replayed, true);
@@ -61,9 +74,17 @@ async function run() {
   await assert.rejects(() => service.receive(organizationId, generated.key, { ...dto, displayName: 'Other' }), ConflictException);
 
   event = null;
+  const shortCodeDto = { ...dto, eventId: 'signup-2', campaignId: campaignId.toLowerCase() };
+  await service.receive(organizationId, generated.key, shortCodeDto);
+  assert.equal(campaignLookup.id, campaignId);
+  const shortCodeReplay = await service.receive(organizationId, generated.key, { ...shortCodeDto, campaignId });
+  assert.equal(shortCodeReplay.replayed, true);
+  assert.equal(enrollmentCount, 2);
+
+  event = null;
   channels[0].unsubscribed = true;
   await assert.rejects(() => service.receive(organizationId, generated.key, dto), ConflictException);
-  assert.equal(enrollmentCount, 1);
+  assert.equal(enrollmentCount, 2);
 }
 
 void run().then(() => console.log('subscriber intake tests passed'));

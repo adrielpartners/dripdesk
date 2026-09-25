@@ -32,6 +32,7 @@ export class SubscriberIntakeService {
     const channels = this.channels(dto);
     const eventId = dto.eventId.trim();
     const displayName = dto.displayName.trim();
+    const campaignId = dto.campaignId.toUpperCase();
     if (!eventId || !displayName) throw new BadRequestException('Event ID and display name cannot be blank');
     if (dto.tags && (dto.tags.length > 25 || dto.tags.some((tag) => tag.length > 80))) {
       throw new BadRequestException('Provide at most 25 tags of up to 80 characters each');
@@ -42,7 +43,7 @@ export class SubscriberIntakeService {
     }
 
     const payloadHash = this.hash(JSON.stringify({
-      campaignId: dto.campaignId, displayName, channels, timezone: dto.timezone?.trim() ?? null,
+      campaignId, displayName, channels, timezone: dto.timezone?.trim() ?? null,
       tags: dto.tags?.map((tag) => tag.trim()).filter(Boolean).sort() ?? [], consent: dto.consent,
     }));
     const replay = await this.prisma.subscriberIntakeEvent.findUnique({
@@ -58,7 +59,7 @@ export class SubscriberIntakeService {
         if (withinTransaction) return this.replay(withinTransaction, payloadHash);
 
         const campaign = await tx.campaign.findFirst({
-          where: { id: dto.campaignId, organizationId },
+          where: { organizationId, id: campaignId },
           include: { steps: { where: { status: 'published' }, orderBy: { stepOrder: 'asc' }, take: 1 } },
         });
         if (!campaign) throw new NotFoundException('Campaign not found in this organization');
